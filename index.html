@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solitario Web</title>
+    <style>
+        body {
+            background-color: #0b5e20; /* Verde tapete */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+        #top-bar { margin-bottom: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background: #fff; color: #333; font-weight: bold; }
+        .board { display: flex; flex-direction: column; gap: 30px; width: 100%; max-width: 800px; }
+        .row { display: flex; gap: 15px; justify-content: space-between; height: 140px; }
+        .pile { 
+            width: 80px; height: 112px; border: 2px dashed rgba(255,255,255,0.3); border-radius: 8px; position: relative;
+        }
+        .card {
+            width: 80px; height: 112px; background-color: white; border-radius: 8px; position: absolute;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 5px; box-sizing: border-box; font-size: 20px; font-weight: bold;
+            transition: transform 0.1s;
+        }
+        .card:hover { transform: translateY(-2px); }
+        .card.red { color: #d92525; }
+        .card.black { color: #222; }
+        .card.hidden { background-color: #1a4971; border: 2px solid white; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px); cursor: default; }
+        .card.hidden .content { display: none; }
+        .card.selected { box-shadow: 0 0 15px 5px #ffd700; border: 2px solid #ffd700; transform: translateY(-5px); }
+        
+        /* Disposición de áreas */
+        #top-left { display: flex; gap: 15px; width: 250px; }
+        #foundations { display: flex; gap: 15px; flex-grow: 1; justify-content: flex-end; }
+        #tableaus { display: flex; gap: 15px; justify-content: space-between; height: 400px; }
+        
+        /* Los textos de las esquinas de la carta */
+        .card-top { align-self: flex-start; }
+        .card-center { align-self: center; font-size: 32px; }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <button onclick="iniciarJuego()">Nuevo Juego</button>
+    </div>
+
+    <div class="board">
+        <div class="row">
+            <div id="top-left">
+                <div class="pile" id="stock" onclick="clickStock()"></div>
+                <div class="pile" id="waste" onclick="clickPile('waste', 0)"></div>
+            </div>
+            <div id="foundations">
+                <div class="pile" id="f0" onclick="clickPile('foundation', 0)"></div>
+                <div class="pile" id="f1" onclick="clickPile('foundation', 1)"></div>
+                <div class="pile" id="f2" onclick="clickPile('foundation', 2)"></div>
+                <div class="pile" id="f3" onclick="clickPile('foundation', 3)"></div>
+            </div>
+        </div>
+        
+        <div id="tableaus">
+            <div class="pile" id="t0" onclick="clickPile('tableau', 0)"></div>
+            <div class="pile" id="t1" onclick="clickPile('tableau', 1)"></div>
+            <div class="pile" id="t2" onclick="clickPile('tableau', 2)"></div>
+            <div class="pile" id="t3" onclick="clickPile('tableau', 3)"></div>
+            <div class="pile" id="t4" onclick="clickPile('tableau', 4)"></div>
+            <div class="pile" id="t5" onclick="clickPile('tableau', 5)"></div>
+            <div class="pile" id="t6" onclick="clickPile('tableau', 6)"></div>
+        </div>
+    </div>
+
+    <script>
+        const palos = [
+            { nombre: 'corazones', simbolo: '♥', color: 'red' },
+            { nombre: 'diamantes', simbolo: '♦', color: 'red' },
+            { nombre: 'treboles', simbolo: '♣', color: 'black' },
+            { nombre: 'picas', simbolo: '♠', color: 'black' }
+        ];
+        const valores = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        
+        let mazo = [], stock = [], waste = [], fundaciones = [[],[],[],[]], tableaus = [[],[],[],[],[],[],[]];
+        let seleccion = null; // { area, index, cardIndex }
+
+        function iniciarJuego() {
+            // 1. Crear baraja
+            mazo = [];
+            for (let palo of palos) {
+                for (let i = 0; i < valores.length; i++) {
+                    mazo.push({ palo: palo, valorStr: valores[i], valorNum: i + 1, bocaArriba: false });
+                }
+            }
+            // 2. Barajar aleatoriamente
+            mazo.sort(() => Math.random() - 0.5);
+
+            // 3. Limpiar estado
+            stock = []; waste = [];
+            fundaciones = [[],[],[],[]];
+            tableaus = [[],[],[],[],[],[],[]];
+            seleccion = null;
+
+            // 4. Repartir cartas en los 7 tableaus
+            for (let i = 0; i < 7; i++) {
+                for (let j = 0; j <= i; j++) {
+                    let carta = mazo.pop();
+                    if (j === i) carta.bocaArriba = true; // La última carta de la pila va descubierta
+                    tableaus[i].push(carta);
+                }
+            }
+            stock = mazo;
+            render();
+        }
+
+        function render() {
+            // Renderizar Stock
+            dibujarPila('stock', stock.length > 0 ? [{...stock[stock.length-1], bocaArriba: false}] : []);
+            
+            // Renderizar Waste
+            dibujarPila('waste', waste.length > 0 ? [waste[waste.length-1]] : []);
+
+            // Renderizar Fundaciones
+            for (let i = 0; i < 4; i++) {
+                dibujarPila('f' + i, fundaciones[i].length > 0 ? [fundaciones[i][fundaciones[i].length-1]] : [], 'foundation', i);
+            }
+
+            // Renderizar Tableaus
+            for (let i = 0; i < 7; i++) {
+                dibujarPila('t' + i, tableaus[i], 'tableau', i, 25); // 25px de separación vertical
+            }
+        }
+
+        function dibujarPila(elementId, cartas, area, areaIndex, offset = 0) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = '';
+            cartas.forEach((carta, i) => {
+                const div = document.createElement('div');
+                div.className = `card ${carta.bocaArriba ? carta.palo.color : 'hidden'}`;
+                
+                // Resaltar si está seleccionada
+                if (seleccion && seleccion.area === area && seleccion.index === areaIndex && i >= seleccion.cardIndex) {
+                    div.classList.add('selected');
+                }
+
+                div.style.top = `${i * offset}px`;
+                
+                if (carta.bocaArriba) {
+                    div.innerHTML = `
+                        <div class="content card-top">${carta.valorStr} ${carta.palo.simbolo}</div>
+                        <div class="content card-center">${carta.palo.simbolo}</div>
+                    `;
+                }
+
+                // Evitar propagación para manejar clics precisos en cartas individuales del tableau
+                div.onclick = (e) => {
+                    e.stopPropagation();
+                    if (area === 'tableau' && !carta.bocaArriba) return; // No interactuar con ocultas
+                    clickPile(area, areaIndex, i);
+                };
+                el.appendChild(div);
+            });
+        }
+
+        function clickStock() {
+            seleccion = null; // Limpiar selección
+            if (stock.length > 0) {
+                let carta = stock.pop();
+                carta.bocaArriba = true;
+                waste.push(carta);
+            } else {
+                // Reiniciar stock desde el waste
+                while (waste.length > 0) {
+                    let carta = waste.pop();
+                    carta.bocaArriba = false;
+                    stock.push(carta);
+                }
+            }
+            render();
+        }
+
+        function clickPile(area, index, cardIndex = null) {
+            let objetivo = obtenerPila(area, index);
+            
+            // Si no hay nada seleccionado, intentar seleccionar
+            if (!seleccion) {
+                if (objetivo.length === 0) return; // Pila vacía
+                if (area === 'waste') cardIndex = waste.length - 1;
+                if (area === 'foundation') cardIndex = fundaciones[index].length - 1;
+                
+                seleccion = { area, index, cardIndex };
+            } 
+            // Si ya hay algo seleccionado, intentar mover
+            else {
+                // Cancelar si hacemos clic en la misma carta
+                if (seleccion.area === area && seleccion.index === index && seleccion.cardIndex === cardIndex) {
+                    seleccion = null;
+                } else {
+                    intentarMovimiento(area, index);
+                }
+            }
+            render();
+        }
+
+        function obtenerPila(area, index) {
+            if (area === 'waste') return waste;
+            if (area === 'foundation') return fundaciones[index];
+            if (area === 'tableau') return tableaus[index];
+        }
+
+        function intentarMovimiento(areaDestino, indexDestino) {
+            let pilaOrigen = obtenerPila(seleccion.area, seleccion.index);
+            let cartasAMover = pilaOrigen.slice(seleccion.cardIndex);
+            let cartaBaseMoviendo = cartasAMover[0];
+            let pilaDestino = obtenerPila(areaDestino, indexDestino);
+            let cartaTopDestino = pilaDestino.length > 0 ? pilaDestino[pilaDestino.length - 1] : null;
+
+            let movimientoValido = false;
+
+            // Regla 1: Hacia Fundación (Solo se puede mover 1 carta a la vez)
+            if (areaDestino === 'foundation' && cartasAMover.length === 1) {
+                if (!cartaTopDestino) {
+                    movimientoValido = cartaBaseMoviendo.valorNum === 1; // Solo Ases en fundaciones vacías
+                } else {
+                    movimientoValido = (cartaTopDestino.palo.nombre === cartaBaseMoviendo.palo.nombre) && 
+                                       (cartaBaseMoviendo.valorNum === cartaTopDestino.valorNum + 1);
+                }
+            }
+            // Regla 2: Hacia Tableau
+            else if (areaDestino === 'tableau') {
+                if (!cartaTopDestino) {
+                    movimientoValido = cartaBaseMoviendo.valorNum === 13; // Solo Reyes (K) en espacios vacíos
+                } else {
+                    movimientoValido = (cartaTopDestino.palo.color !== cartaBaseMoviendo.palo.color) && 
+                                       (cartaBaseMoviendo.valorNum === cartaTopDestino.valorNum - 1);
+                }
+            }
+
+            if (movimientoValido) {
+                // Ejecutar movimiento
+                pilaDestino.push(...cartasAMover);
+                pilaOrigen.splice(seleccion.cardIndex, cartasAMover.length);
+                
+                // Voltear la carta que quedó arriba en el origen si es necesario
+                if (pilaOrigen.length > 0 && !pilaOrigen[pilaOrigen.length - 1].bocaArriba) {
+                    pilaOrigen[pilaOrigen.length - 1].bocaArriba = true;
+                }
+            }
+            
+            // Limpiar selección sin importar si fue válido o no
+            seleccion = null;
+        }
+
+        // Iniciar al cargar
+        iniciarJuego();
+    </script>
+</body>
+</html>
