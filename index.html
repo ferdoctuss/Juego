@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Flappy Paul - Edición Locura Total</title>
+  <title>Flappy Paul - Edición Musical</title>
   <style>
     :root {
       --bg-color: #70c5ce; 
@@ -71,7 +71,6 @@
       transform: scale(1.2);
     }
 
-    /* TEXTO DEL SUPER PODER FLOTANTE */
     #powerup-text {
       position: absolute;
       top: 35%;
@@ -90,6 +89,29 @@
       opacity: 1;
       transform: scale(1.1);
     }
+
+    /* Botón de Música */
+    #mute-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      z-index: 30;
+      pointer-events: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.2s;
+    }
+    
+    #mute-btn:hover { background: rgba(0, 0, 0, 0.7); }
 
     #start-screen, #game-over-screen {
       position: absolute;
@@ -111,7 +133,7 @@
 
     .hidden { display: none !important; }
 
-    button {
+    button.action-btn {
       background-color: #f43f5e;
       color: white;
       border: none;
@@ -125,7 +147,7 @@
       margin-top: 10px;
     }
 
-    button:active {
+    button.action-btn:active {
       transform: translateY(4px);
       box-shadow: 0 0 0 #be123c;
     }
@@ -154,13 +176,15 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
+      <button id="mute-btn" onclick="toggleMute()">🔊</button>
+
       <div id="score-display">0</div>
       <div id="powerup-text">¡PODER!</div>
       
       <div id="start-screen">
         <h2>Flappy Paul</h2>
         <p>Atrapa las 🌟 para Súper Poderes</p>
-        <button onclick="startGame()">JUGAR</button>
+        <button class="action-btn" onclick="startGame()">JUGAR</button>
       </div>
 
       <div id="game-over-screen" class="hidden">
@@ -169,12 +193,76 @@
           <p>Puntuación: <span class="score-number" id="final-score">0</span></p>
           <p>Récord: <span class="score-number" id="best-score">0</span></p>
         </div>
-        <button onclick="resetGame()">REINTENTAR</button>
+        <button class="action-btn" onclick="resetGame()">REINTENTAR</button>
       </div>
     </div>
   </div>
 
   <script>
+    // --- SINTETIZADOR DE MÚSICA 8-BITS ---
+    let audioCtx = null;
+    let musicInterval = null;
+    let noteIndex = 0;
+    let isMuted = false;
+
+    // Notas de la melodía (frecuencias en Hz). Los 0 son silencios. (Melodía alegre tipo arcade)
+    const notes = [
+      330, 330, 0, 330, 0, 261, 330, 0, 392, 0, 0, 0, 196, 0, 0, 0,
+      261, 0, 0, 196, 0, 0, 164, 0, 0, 220, 0, 246, 0, 233, 220, 0
+    ];
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      document.getElementById('mute-btn').innerText = isMuted ? "🔇" : "🔊";
+      
+      if (isMuted) {
+        stopMusic();
+      } else {
+        if (currentState === 'PLAYING') playMusic();
+      }
+    }
+
+    function playMusic() {
+      if (isMuted) return;
+      
+      // Crear contexto de audio solo al interactuar (requerido por navegadores modernos)
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      if (musicInterval) clearInterval(musicInterval);
+      
+      musicInterval = setInterval(() => {
+        let freq = notes[noteIndex % notes.length];
+        noteIndex++;
+        
+        if (freq === 0) return; 
+        
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        
+        osc.type = 'square'; // Forma de onda tipo 8-bits (Gameboy)
+        osc.frequency.value = freq;
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        let now = audioCtx.currentTime;
+        osc.start(now);
+        gain.gain.setValueAtTime(0.02, now); // Volumen (muy bajo para que no moleste)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15); // Desvanecimiento rápido
+        osc.stop(now + 0.15);
+      }, 150); // 150ms por nota (ritmo)
+    }
+
+    function stopMusic() {
+      if (musicInterval) {
+        clearInterval(musicInterval);
+        musicInterval = null;
+      }
+    }
+
+
+    // --- CONFIGURACIÓN DEL CANVAS ---
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
@@ -203,15 +291,14 @@
     let powerUpTimer = 0;
     let shieldTimer = 0; 
     let pointsPerPipe = 1; 
-    let hasBubbleShield = false; // El Escudo Burbuja dura hasta que chocas
+    let hasBubbleShield = false; 
     
-    // Bolsa de Poderes (8 en total, sin repetir)
     let powerBag = [];
 
     function getNextPowerUp() {
       if (powerBag.length === 0) {
         powerBag = ['SPEED', 'LASER', 'GIANT', 'SCORE', 'MINI', 'SLOWMO', 'SHIELD', 'MAGNET'];
-        powerBag.sort(() => Math.random() - 0.5); // Mezclamos
+        powerBag.sort(() => Math.random() - 0.5); 
       }
       return powerBag.pop(); 
     }
@@ -232,13 +319,10 @@
       draw: function() {
         ctx.save(); 
         
-        if (shieldTimer > 0) {
-          ctx.globalAlpha = (frames % 10 < 5) ? 0.4 : 1; 
-        }
+        if (shieldTimer > 0) ctx.globalAlpha = (frames % 10 < 5) ? 0.4 : 1; 
 
         ctx.translate(this.x, this.y); 
         
-        // EFECTOS DE AURAS
         if (activePowerUp === 'SPEED' || activePowerUp === 'SCORE') {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
@@ -246,7 +330,6 @@
           ctx.fill();
         }
 
-        // BURBUJA DEL ESCUDO PERMANENTE
         if (hasBubbleShield) {
           ctx.beginPath();
           ctx.arc(0, 0, this.originalRadius * 1.8 + Math.random() * 2, 0, Math.PI * 2);
@@ -257,16 +340,14 @@
           ctx.stroke();
         }
 
-        // IMÁN CÓSMICO (Ondas)
         if (activePowerUp === 'MAGNET') {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 10 + (frames % 20), 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(236, 72, 153, ${1 - (frames % 20)/20})`; // Rosa desvaneciéndose
+          ctx.strokeStyle = `rgba(236, 72, 153, ${1 - (frames % 20)/20})`; 
           ctx.lineWidth = 2;
           ctx.stroke();
         }
 
-        // NOMBRE DE PAUL
         ctx.fillStyle = "white";
         ctx.font = "bold " + (12 * (this.radius / this.originalRadius)) + "px Arial";
         ctx.textAlign = "center";
@@ -279,7 +360,6 @@
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
-        // OJOS LÁSER
         if (activePowerUp === 'LASER') {
           ctx.beginPath();
           ctx.moveTo(5, -5);
@@ -302,14 +382,12 @@
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#000";
 
-        // Cuerpo 
         ctx.beginPath();
         ctx.arc(0, 0, this.originalRadius, 0, Math.PI * 2);
         ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; 
         ctx.fill();
         ctx.stroke();
 
-        // Ojo 
         ctx.beginPath();
         ctx.arc(5, -5, 4, 0, Math.PI * 2); 
         ctx.fillStyle = activePowerUp === 'LASER' ? "red" : "white";
@@ -321,7 +399,6 @@
         ctx.fillStyle = activePowerUp === 'LASER' ? "yellow" : "black";
         ctx.fill();
 
-        // Pico 
         ctx.beginPath();
         ctx.moveTo(10, -1);
         ctx.lineTo(18, 2);
@@ -331,10 +408,9 @@
         ctx.fill();
         ctx.stroke();
 
-        // Ala
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
         if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; 
-        if (activePowerUp === 'SLOWMO') flapOffset = (frames % 40 < 20) ? -2 : 2; // Aleteo lento
+        if (activePowerUp === 'SLOWMO') flapOffset = (frames % 40 < 20) ? -2 : 2; 
         if (currentState !== 'PLAYING') flapOffset = 0;
 
         ctx.beginPath();
@@ -350,7 +426,6 @@
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Inmunidad a los bordes
         let isImmuneToBorders = (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || shieldTimer > 0 || hasBubbleShield);
 
         if (isImmuneToBorders) {
@@ -380,7 +455,7 @@
       }
     };
 
-    // --- OBJETO: OBSTÁCULOS (TUBERÍAS Y MONEDAS) ---
+    // --- OBJETO: OBSTÁCULOS ---
     const obstacles = {
       items: [],
       width: 55,
@@ -449,7 +524,6 @@
           this.items.push({ x: canvas.width, topHeight: topHeight, passed: false, destroyed: false });
           pipesSpawnedCount++;
 
-          // CADA 7 TUBERÍAS SALE UNA MONEDA
           if (pipesSpawnedCount % 7 === 0) {
             let coinNearTop = Math.random() < 0.5;
             let coinYPosition = coinNearTop ? topHeight + 25 : topHeight + this.gap - 25;
@@ -457,11 +531,9 @@
           }
         }
 
-        // Colisiones con MONEDAS
         for (let i = 0; i < coinsList.length; i++) {
           let c = coinsList[i];
           
-          // Efecto Imán Cósmico
           if (activePowerUp === 'MAGNET') {
             let dx = bird.x - c.x;
             let dy = bird.y - c.y;
@@ -484,14 +556,12 @@
           if (c.x < -30) { coinsList.splice(i, 1); i--; }
         }
 
-        // Colisiones con TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           p.x -= gameSpeed;
           let bottomY = p.topHeight + this.gap;
           
           if (!p.destroyed) {
-            // Destrucción por Láser
             if (activePowerUp === 'LASER' && p.x > bird.x) {
               p.destroyed = true;
             } 
@@ -502,16 +572,14 @@
                   p.destroyed = true; 
                 } 
                 else if (activePowerUp === 'SPEED' || shieldTimer > 0) {
-                  // Inmune temporalmente
+                  // Inmune
                 } 
                 else if (hasBubbleShield) {
-                  // ¡La burbuja nos salva! Se rompe la tubería y el escudo, y nos da 1 seg extra
                   p.destroyed = true;
                   hasBubbleShield = false;
-                  shieldTimer = 60; // Parpadeo de gracia
+                  shieldTimer = 60; 
                 }
                 else {
-                  // Muerte
                   currentState = 'GAMEOVER';
                   showGameOver();
                 }
@@ -519,7 +587,6 @@
             }
           }
 
-          // Sumar puntos
           if (p.x + this.width < bird.x && !p.passed) {
             score += pointsPerPipe;
             p.passed = true;
@@ -542,7 +609,6 @@
       let newPower = getNextPowerUp();
       let msgText = document.getElementById('powerup-text');
       
-      // Reset de estadísticas base por si teníamos otro poder
       gameSpeed = baseSpeed;
       bird.radius = bird.originalRadius;
       pointsPerPipe = 1;
@@ -551,7 +617,7 @@
 
       if (newPower === 'SHIELD') {
         hasBubbleShield = true;
-        powerUpTimer = 120; // Solo para mostrar el texto 2 segs
+        powerUpTimer = 120; // 2 Segundos solo para el texto
         msgText.innerText = "¡ESCUDO BURBUJA!";
         msgText.style.color = "#6ee7b7";
       } 
@@ -559,8 +625,8 @@
         activePowerUp = newPower;
         shieldTimer = 0; 
         
-        // TIEMPO BALA Y EL IMÁN DURAN 5 SEGUNDOS, LOS DEMÁS 3
-        powerUpTimer = (activePowerUp === 'SLOWMO' || activePowerUp === 'MAGNET') ? 300 : 180; 
+        // TODOS LOS PODERES DURAN 5 SEGUNDOS (300 frames a 60fps)
+        powerUpTimer = 300; 
         
         if (activePowerUp === 'SPEED') {
           gameSpeed = 22; 
@@ -600,8 +666,8 @@
     }
 
     function updatePowerUp() {
-      // Ocultar texto flotante
-      if (powerUpTimer === 120 || (activePowerUp === 'NONE' && powerUpTimer === 60)) {
+      // Ocultar texto flotante después de 1 segundo (quedan 4s de poder)
+      if (powerUpTimer === 240 || (activePowerUp === 'NONE' && powerUpTimer === 60)) {
         document.getElementById('powerup-text').classList.remove('show');
       }
 
@@ -609,7 +675,6 @@
         powerUpTimer--;
         
         if (powerUpTimer === 0 && activePowerUp !== 'NONE') {
-          // TERMINA EL PODER ACTIVO
           if (activePowerUp === 'SLOWMO') bird.velocity *= 2; 
 
           gameSpeed = baseSpeed;
@@ -618,11 +683,10 @@
           bird.gravity = 0.25;
           bird.jumpForce = -5.5;
 
-          // Solo limpiamos la pantalla si era un poder que alteraba mucho el movimiento
           if (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || activePowerUp === 'SLOWMO') {
             obstacles.items = []; 
             distanceSinceLastPipe = 0; 
-            shieldTimer = 90; // Modo fantasma activado
+            shieldTimer = 90; 
           }
 
           activePowerUp = 'NONE';
@@ -664,7 +728,6 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (activePowerUp === 'SLOWMO') {
-        // Tinte azulado para el efecto cinematográfico
         ctx.fillStyle = "rgba(0, 0, 50, 0.2)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
@@ -689,11 +752,13 @@
     function startGame() {
       document.getElementById('start-screen').classList.add('hidden');
       currentState = 'PLAYING';
+      playMusic(); // <-- Iniciar la música aquí
       bird.jump(); 
       loop();
     }
 
     function showGameOver() {
+      stopMusic(); // <-- Detener la música
       document.getElementById('game-over-screen').classList.remove('hidden');
       document.getElementById('powerup-text').classList.remove('show');
       
@@ -731,12 +796,16 @@
       document.getElementById('score-display').classList.remove('powerup');
       
       currentState = 'PLAYING';
+      playMusic(); // <-- Iniciar la música otra vez
       bird.jump();
       loop();
     }
 
     // --- CONTROLES ---
     function handleInput(e) {
+      // Ignorar clics en botones de la interfaz
+      if (e.target.tagName === 'BUTTON') return;
+      
       if(e.type === 'touchstart') e.preventDefault(); 
       if (currentState === 'PLAYING') bird.jump();
     }
