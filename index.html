@@ -71,7 +71,6 @@
       transform: scale(1.2);
     }
 
-    /* TEXTO DEL SUPER PODER FLOTANTE */
     #powerup-text {
       position: absolute;
       top: 35%;
@@ -202,8 +201,20 @@
     let activePowerUp = 'NONE'; // NONE, SPEED, LASER, GIANT, SCORE
     let powerUpTimer = 0;
     let shieldTimer = 0; 
-    let pointsPerPipe = 1; // Cambia a 10 con el poder SCORE
+    let pointsPerPipe = 1; 
     
+    // Bolsa de Poderes (para que no se repitan hasta salir todos)
+    let powerBag = [];
+
+    function getNextPowerUp() {
+      if (powerBag.length === 0) {
+        powerBag = ['SPEED', 'LASER', 'GIANT', 'SCORE'];
+        // Mezclamos la bolsa aleatoriamente
+        powerBag.sort(() => Math.random() - 0.5);
+      }
+      return powerBag.pop(); // Saca el último poder de la bolsa mezclada
+    }
+
     let coinsList = [];
     let pipesSpawnedCount = 0; 
 
@@ -226,7 +237,6 @@
 
         ctx.translate(this.x, this.y); 
         
-        // Efectos de Aura según el poder
         if (activePowerUp === 'SPEED' || activePowerUp === 'SCORE') {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
@@ -234,7 +244,6 @@
           ctx.fill();
         }
 
-        // --- NOMBRE DE PAUL ---
         ctx.fillStyle = "white";
         ctx.font = "bold " + (12 * (this.radius / this.originalRadius)) + "px Arial";
         ctx.textAlign = "center";
@@ -244,15 +253,13 @@
         ctx.strokeText("Paul", 0, nameY);
         ctx.fillText("Paul", 0, nameY);
 
-        // Rotación dinámica al saltar/caer
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
-        // --- DIBUJAR OJOS LÁSER ---
         if (activePowerUp === 'LASER') {
           ctx.beginPath();
           ctx.moveTo(5, -5);
-          ctx.lineTo(canvas.width, -5); // Dispara fuera de la pantalla
+          ctx.lineTo(canvas.width, -5); 
           ctx.lineWidth = 4 * (this.radius / this.originalRadius);
           ctx.strokeStyle = "red";
           ctx.stroke();
@@ -265,21 +272,18 @@
           ctx.stroke();
         }
 
-        // Si es Gigante, escalamos el dibujo
         let scale = this.radius / this.originalRadius;
         ctx.scale(scale, scale);
 
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#000";
 
-        // Cuerpo 
         ctx.beginPath();
         ctx.arc(0, 0, this.originalRadius, 0, Math.PI * 2);
         ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; 
         ctx.fill();
         ctx.stroke();
 
-        // Ojo 
         ctx.beginPath();
         ctx.arc(5, -5, 4, 0, Math.PI * 2); 
         ctx.fillStyle = activePowerUp === 'LASER' ? "red" : "white";
@@ -291,7 +295,6 @@
         ctx.fillStyle = activePowerUp === 'LASER' ? "yellow" : "black";
         ctx.fill();
 
-        // Pico 
         ctx.beginPath();
         ctx.moveTo(10, -1);
         ctx.lineTo(18, 2);
@@ -301,7 +304,6 @@
         ctx.fill();
         ctx.stroke();
 
-        // Ala
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
         if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; 
         if (currentState !== 'PLAYING') flapOffset = 0;
@@ -319,18 +321,30 @@
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Mantener a Paul gigante dentro de la pantalla
-        if (this.y + this.radius >= canvas.height - 40) {
-          this.y = canvas.height - 40 - this.radius;
-          // Rebotar si hay poder o escudo temporal
-          if (powerUpTimer > 0 || shieldTimer > 0) this.velocity = -7; 
-          else { currentState = 'GAMEOVER'; showGameOver(); }
-        }
-        
-        if (this.y - this.radius <= 0) {
-          this.y = this.radius;
-          if (powerUpTimer > 0 || shieldTimer > 0) this.velocity = 3; 
-          else this.velocity = 0;
+        // Solo estos poderes y el escudo otorgan inmunidad de rebote en los bordes
+        let isImmuneToBorders = (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || shieldTimer > 0);
+
+        if (isImmuneToBorders) {
+          if (this.y + this.radius >= canvas.height - 40) {
+            this.y = canvas.height - 40 - this.radius;
+            this.velocity = -7; 
+          }
+          if (this.y - this.radius <= 0) {
+            this.y = this.radius;
+            this.velocity = 3; 
+          }
+        } 
+        else {
+          // Si no tiene esos poderes (ej: SCORE o LASER sin golpear), MUERE al tocar el suelo
+          if (this.y + this.radius >= canvas.height - 40) {
+            this.y = canvas.height - 40 - this.radius;
+            currentState = 'GAMEOVER';
+            showGameOver();
+          }
+          if (this.y - this.radius <= 0) {
+            this.y = this.radius;
+            this.velocity = 0;
+          }
         }
       },
       jump: function() {
@@ -348,7 +362,7 @@
       draw: function() {
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
-          if (p.destroyed) continue; // No dibujar si fue destruida por Láser o Gigante
+          if (p.destroyed) continue; 
 
           let pipeGradient = ctx.createLinearGradient(p.x, 0, p.x + this.width, 0);
           pipeGradient.addColorStop(0, "#53a828");
@@ -363,13 +377,11 @@
           let capHeight = 20; 
           let capExtra = 6;   
 
-          // Superior
           ctx.fillRect(p.x, 0, this.width, p.topHeight);
           ctx.strokeRect(p.x, 0, this.width, p.topHeight);
           ctx.fillRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
           ctx.strokeRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
 
-          // Inferior
           let bottomY = p.topHeight + this.gap;
           let bottomHeight = canvas.height - bottomY - 40;
           ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
@@ -378,7 +390,6 @@
           ctx.strokeRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
         }
 
-        // Monedas
         for (let i = 0; i < coinsList.length; i++) {
           let c = coinsList[i];
           ctx.beginPath();
@@ -410,7 +421,6 @@
           this.items.push({ x: canvas.width, topHeight: topHeight, passed: false, destroyed: false });
           pipesSpawnedCount++;
 
-          // AHORA CADA 7 TUBERÍAS SALE UNA MONEDA
           if (pipesSpawnedCount % 7 === 0) {
             let coinNearTop = Math.random() < 0.5;
             let coinYPosition = coinNearTop ? topHeight + 25 : topHeight + this.gap - 25;
@@ -418,7 +428,6 @@
           }
         }
 
-        // Colisiones con MONEDAS
         for (let i = 0; i < coinsList.length; i++) {
           let c = coinsList[i];
           c.x -= gameSpeed;
@@ -436,32 +445,35 @@
           if (c.x < -30) { coinsList.splice(i, 1); i--; }
         }
 
-        // Colisiones con TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           p.x -= gameSpeed;
-
           let bottomY = p.topHeight + this.gap;
           
           if (!p.destroyed) {
-            // DESTRUCCIÓN POR LÁSER (Si la tubería está delante de Paul)
             if (activePowerUp === 'LASER' && p.x > bird.x) {
               p.destroyed = true;
             } 
-            // COLISIONES FÍSICAS (Muerte o Destrucción Gigante)
             else if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
               if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
+                
+                // --- LÓGICA DE COLISIÓN DE TUBERÍAS CORREGIDA ---
                 if (activePowerUp === 'GIANT') {
                   p.destroyed = true; // Paul gigante rompe el tubo
-                } else if (powerUpTimer === 0 && shieldTimer === 0) {
+                } 
+                else if (activePowerUp === 'SPEED' || shieldTimer > 0) {
+                  // Pasa de largo sin morir
+                } 
+                else {
+                  // Si tiene el poder SCORE, o LASER, o NADA, ¡Morirá aquí!
                   currentState = 'GAMEOVER';
                   showGameOver();
                 }
+
               }
             }
           }
 
-          // Sumar puntos al pasar el área de la tubería (incluso si está destruida)
           if (p.x + this.width < bird.x && !p.passed) {
             score += pointsPerPipe;
             p.passed = true;
@@ -481,12 +493,11 @@
 
     // --- LÓGICA DE SUPER PODERES ---
     function activateRandomPowerUp() {
-      const powers = ['SPEED', 'LASER', 'GIANT', 'SCORE'];
-      activePowerUp = powers[Math.floor(Math.random() * powers.length)];
-      powerUpTimer = 180; // 3 Segundos
+      // Obtenemos el poder de la bolsa en lugar de 100% al azar
+      activePowerUp = getNextPowerUp();
+      powerUpTimer = 180; 
       shieldTimer = 0; 
 
-      // Reiniciar stats base
       gameSpeed = baseSpeed;
       bird.radius = bird.originalRadius;
       pointsPerPipe = 1;
@@ -501,8 +512,7 @@
         msgText.innerText = "¡OJOS LÁSER!";
         msgText.style.color = "#ef4444";
       } else if (activePowerUp === 'GIANT') {
-        bird.radius = bird.originalRadius * 4; // Tamaño x4
-        // Evitar que se quede atascado en el suelo al crecer de golpe
+        bird.radius = bird.originalRadius * 4; 
         if (bird.y + bird.radius > canvas.height - 40) bird.y = canvas.height - 40 - bird.radius;
         msgText.innerText = "¡PAUL GIGANTE!";
         msgText.style.color = "#4ade80";
@@ -517,7 +527,6 @@
     }
 
     function updatePowerUp() {
-      // Ocultar mensaje flotante después de 1 segundo
       if (powerUpTimer === 120) {
         document.getElementById('powerup-text').classList.remove('show');
       }
@@ -526,7 +535,6 @@
         powerUpTimer--;
         
         if (powerUpTimer === 0) {
-          // TERMINA EL PODER
           gameSpeed = baseSpeed;
           bird.radius = bird.originalRadius;
           pointsPerPipe = 1;
@@ -534,9 +542,9 @@
 
           document.getElementById('score-display').classList.remove('powerup');
           
-          obstacles.items = []; // Limpiamos la pantalla por seguridad
+          obstacles.items = []; 
           distanceSinceLastPipe = 0; 
-          shieldTimer = 90; // Modo fantasma activado
+          shieldTimer = 90; 
         }
       }
       
