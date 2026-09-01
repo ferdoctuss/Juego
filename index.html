@@ -44,7 +44,6 @@
       height: 100%;
     }
 
-    /* Interfaz de usuario superpuesta */
     #ui-layer {
       position: absolute;
       top: 0;
@@ -67,7 +66,6 @@
       transition: color 0.2s, transform 0.2s;
     }
 
-    /* Efecto cuando estamos en modo super velocidad */
     #score-display.powerup {
       color: #38bdf8;
       transform: scale(1.2);
@@ -176,13 +174,14 @@
     let animationId;
     
     // Control de Velocidad y Distancia
-    let baseSpeed = 2.8;       // Velocidad normal de los obstáculos
-    let gameSpeed = baseSpeed; // Velocidad actual (cambia con el poder)
-    let distanceTraveled = 0;  // Para el efecto de suelo en movimiento
-    let distanceSinceLastPipe = 220; // Contador para saber cuándo crear otro tubo
+    let baseSpeed = 2.8;       
+    let gameSpeed = baseSpeed; 
+    let distanceTraveled = 0;  
+    let distanceSinceLastPipe = 220; 
     
-    // Control del Power-Up (Moneda)
+    // Control del Power-Up y Fase Segura
     let powerUpTimer = 0;
+    let shieldTimer = 0; // Tiempo de gracia al perder el poder
     let coinsList = [];
 
     // --- OBJETOS DEL JUEGO ---
@@ -196,13 +195,19 @@
       
       draw: function() {
         ctx.save(); 
+        
+        // EFECTO DE PARPADEO EN LA ZONA SEGURA (GHOST MODE)
+        if (shieldTimer > 0) {
+          ctx.globalAlpha = (frames % 10 < 5) ? 0.4 : 1; 
+        }
+
         ctx.translate(this.x, this.y); 
         
-        // Aura invencible si el poder está activo
+        // Aura invencible durante la super velocidad
         if (powerUpTimer > 0) {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(56, 189, 248, 0.5)"; // Aura Celeste brillante
+          ctx.fillStyle = "rgba(56, 189, 248, 0.5)"; 
           ctx.fill();
         }
 
@@ -215,7 +220,7 @@
         // Cuerpo 
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; // Más brillante si tiene poder
+        ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; 
         ctx.fill();
         ctx.stroke();
 
@@ -243,7 +248,7 @@
 
         // Ala animada
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
-        if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; // Aleteo más rápido con poder
+        if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; 
         if (currentState !== 'PLAYING') flapOffset = 0;
 
         ctx.beginPath();
@@ -259,8 +264,8 @@
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Si tenemos el super poder activado, REBOTAMOS en los bordes en lugar de morir
-        if (powerUpTimer > 0) {
+        // Si tenemos SUPER PODER o ESTAMOS EN LA ZONA SEGURA (Escudo temporal) -> Rebotamos
+        if (powerUpTimer > 0 || shieldTimer > 0) {
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
             this.velocity = -7; // Super rebote en el suelo
@@ -270,7 +275,7 @@
             this.velocity = 3; // Rebote en el techo
           }
         } 
-        // Lógica de muerte normal si no tenemos poder
+        // Lógica de muerte normal (solo cuando no hay poderes ni escudos)
         else {
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
@@ -292,13 +297,11 @@
       items: [],
       width: 55,
       gap: 135,
-      pipeSpawnDist: 220, // Distancia entre tubo y tubo
+      pipeSpawnDist: 220,
       
       draw: function() {
-        // DIBUJAR TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
-          
           let pipeGradient = ctx.createLinearGradient(p.x, 0, p.x + this.width, 0);
           pipeGradient.addColorStop(0, "#53a828");
           pipeGradient.addColorStop(0.2, "#74c627"); 
@@ -312,16 +315,15 @@
           let capHeight = 20; 
           let capExtra = 6;   
 
-          // Tubo Superior
+          // Superior
           ctx.fillRect(p.x, 0, this.width, p.topHeight);
           ctx.strokeRect(p.x, 0, this.width, p.topHeight);
           ctx.fillRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
           ctx.strokeRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
 
-          // Tubo Inferior
+          // Inferior
           let bottomY = p.topHeight + this.gap;
           let bottomHeight = canvas.height - bottomY - 40;
-          
           ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
           ctx.strokeRect(p.x, bottomY, this.width, bottomHeight);
           ctx.fillRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
@@ -333,13 +335,12 @@
           let c = coinsList[i];
           ctx.beginPath();
           ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
-          ctx.fillStyle = "#facc15"; // Dorado
+          ctx.fillStyle = "#facc15"; 
           ctx.fill();
           ctx.lineWidth = 2;
-          ctx.strokeStyle = "#b45309"; // Borde bronce
+          ctx.strokeStyle = "#b45309";
           ctx.stroke();
 
-          // Estrella en la moneda
           ctx.fillStyle = "#fff";
           ctx.font = "14px Arial";
           ctx.textAlign = "center";
@@ -351,21 +352,15 @@
       update: function() {
         distanceSinceLastPipe += gameSpeed;
 
-        // Generar nuevos obstáculos basados en distancia (independiente de la velocidad)
         if (distanceSinceLastPipe >= this.pipeSpawnDist) {
           distanceSinceLastPipe = 0;
-
           let minHeight = 60;
           let maxHeight = canvas.height - this.gap - 40 - 60;
           let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
           
-          this.items.push({
-            x: canvas.width,
-            topHeight: topHeight,
-            passed: false 
-          });
+          this.items.push({ x: canvas.width, topHeight: topHeight, passed: false });
 
-          // 30% DE PROBABILIDAD DE CREAR UNA MONEDA EN EL CENTRO DEL HUECO
+          // 30% DE PROBABILIDAD DE CREAR MONEDA
           if (Math.random() < 0.30) {
             coinsList.push({
               x: canvas.width + this.width / 2,
@@ -375,40 +370,33 @@
           }
         }
 
-        // Actualizar y comprobar colisiones con MONEDAS
+        // Colisiones con MONEDAS
         for (let i = 0; i < coinsList.length; i++) {
           let c = coinsList[i];
           c.x -= gameSpeed;
 
-          // Colisión Pájaro -> Moneda
           let dx = bird.x - c.x;
           let dy = bird.y - c.y;
           let distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < bird.radius + c.radius) {
-            // ¡ATRAPÓ LA MONEDA! Activar Super Poder
             activatePowerUp();
             coinsList.splice(i, 1);
             i--;
             continue;
           }
-
-          // Eliminar si sale de pantalla
-          if (c.x < -30) {
-            coinsList.splice(i, 1);
-            i--;
-          }
+          if (c.x < -30) { coinsList.splice(i, 1); i--; }
         }
 
-        // Actualizar y comprobar colisiones con TUBERÍAS
+        // Colisiones con TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           p.x -= gameSpeed;
 
           let bottomY = p.topHeight + this.gap;
           
-          // ¡SOLO MUERE SI NO TIENE EL SUPER PODER ACTIVO!
-          if (powerUpTimer === 0) {
+          // ¡SOLO MUERE SI NO TIENE EL SUPER PODER NI EL ESCUDO DE GRACIA!
+          if (powerUpTimer === 0 && shieldTimer === 0) {
             if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
               if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
                 currentState = 'GAMEOVER';
@@ -417,42 +405,53 @@
             }
           }
 
-          // Aumentar puntuación (funciona sin importar a qué velocidad vayamos)
           if (p.x + this.width < bird.x && !p.passed) {
             score++;
             p.passed = true;
             document.getElementById('score-display').innerText = score;
           }
 
-          // Eliminar tubos fuera de pantalla
-          if (p.x + this.width < -10) {
-            this.items.shift();
-            i--; 
-          }
+          if (p.x + this.width < -10) { this.items.shift(); i--; }
         }
       },
       reset: function() {
         this.items = [];
         coinsList = [];
-        distanceSinceLastPipe = this.pipeSpawnDist; // Para que spawnee uno de inmediato
+        distanceSinceLastPipe = this.pipeSpawnDist; 
       }
     };
 
-    // --- LÓGICA DE SUPER PODERES ---
+    // --- LÓGICA DE SUPER PODERES Y ZONA SEGURA ---
     function activatePowerUp() {
-      powerUpTimer = 180; // Dura aprox 3 segundos (a 60fps)
-      gameSpeed = 22; // Multiplicamos la velocidad x8 (Velocidad absurda pero controlable)
+      powerUpTimer = 180; 
+      gameSpeed = 22; 
+      shieldTimer = 0; // Cancelamos el escudo si agarra otra moneda mientras parpadea
       document.getElementById('score-display').classList.add('powerup');
     }
 
     function updatePowerUp() {
       if (powerUpTimer > 0) {
         powerUpTimer--;
+        
+        // ¡JUSTO CUANDO TERMINA EL PODER!
         if (powerUpTimer === 0) {
-          // Se acabó el poder, regresamos a la normalidad
           gameSpeed = baseSpeed;
           document.getElementById('score-display').classList.remove('powerup');
+          
+          // 1. Limpiamos la pantalla de obstáculos para crear la "Zona Segura"
+          obstacles.items = [];
+          
+          // 2. Reiniciamos el contador para que la siguiente tubería tarde en salir
+          distanceSinceLastPipe = 0; 
+          
+          // 3. Activamos el Escudo Temporal (fantasma) durante 1.5 segundos (90 frames)
+          shieldTimer = 90; 
         }
+      }
+      
+      // Descontar el tiempo del escudo temporal
+      if (shieldTimer > 0) {
+        shieldTimer--;
       }
     }
 
@@ -463,7 +462,6 @@
       ctx.fillStyle = varColor('--ground-color', '#ded895');
       ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
       
-      // Franja de pasto
       ctx.fillStyle = "#84cc3a";
       ctx.fillRect(0, canvas.height - 40, canvas.width, 12);
       ctx.strokeStyle = "#538d1e";
@@ -473,7 +471,6 @@
       ctx.lineTo(canvas.width, canvas.height - 40);
       ctx.stroke();
 
-      // Efecto de movimiento en el suelo sincronizado con la velocidad real
       let moveOffset = distanceTraveled % 20;
       ctx.beginPath();
       for(let i = 0; i < canvas.width + 20; i+= 20) {
@@ -515,7 +512,6 @@
     function showGameOver() {
       document.getElementById('game-over-screen').classList.remove('hidden');
       
-      // Lógica de Puntuación Máxima (Récord)
       if (score > highScore) {
         highScore = score;
         localStorage.setItem('flappy_high_score', highScore);
@@ -535,6 +531,7 @@
       frames = 0;
       distanceTraveled = 0;
       powerUpTimer = 0;
+      shieldTimer = 0; // Reiniciar escudo
       gameSpeed = baseSpeed;
       
       document.getElementById('score-display').innerText = score;
@@ -545,7 +542,7 @@
       loop();
     }
 
-    // --- CONTROLES (Toque, Clic y Teclado) ---
+    // --- CONTROLES ---
     function handleInput(e) {
       if(e.type === 'touchstart') e.preventDefault(); 
       if (currentState === 'PLAYING') bird.jump();
@@ -567,11 +564,9 @@
       return style.getPropertyValue(name).trim() || fallback;
     }
 
-    // Dibujar el estado inicial antes de jugar
     drawGround();
     bird.draw();
 
-    // Bloqueo de Zoom iOS
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
     document.addEventListener('touchmove', function(event) {
       if (event.scale && event.scale !== 1) { event.preventDefault(); }
