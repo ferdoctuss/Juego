@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Flappy Paul - Edición Musical</title>
+  <title>Flappy Paul - Edición Locura Total</title>
   <style>
     :root {
       --bg-color: #70c5ce; 
@@ -205,11 +205,20 @@
     let noteIndex = 0;
     let isMuted = false;
 
-    // Notas de la melodía (frecuencias en Hz). Los 0 son silencios. (Melodía alegre tipo arcade)
+    // Melodía tipo Arcade
     const notes = [
       330, 330, 0, 330, 0, 261, 330, 0, 392, 0, 0, 0, 196, 0, 0, 0,
       261, 0, 0, 196, 0, 0, 164, 0, 0, 220, 0, 246, 0, 233, 220, 0
     ];
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
 
     function toggleMute() {
       isMuted = !isMuted;
@@ -225,10 +234,7 @@
     function playMusic() {
       if (isMuted) return;
       
-      // Crear contexto de audio solo al interactuar (requerido por navegadores modernos)
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      
+      initAudio();
       if (musicInterval) clearInterval(musicInterval);
       
       musicInterval = setInterval(() => {
@@ -240,7 +246,7 @@
         let osc = audioCtx.createOscillator();
         let gain = audioCtx.createGain();
         
-        osc.type = 'square'; // Forma de onda tipo 8-bits (Gameboy)
+        osc.type = 'square'; 
         osc.frequency.value = freq;
         
         osc.connect(gain);
@@ -248,10 +254,11 @@
         
         let now = audioCtx.currentTime;
         osc.start(now);
-        gain.gain.setValueAtTime(0.02, now); // Volumen (muy bajo para que no moleste)
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15); // Desvanecimiento rápido
+        // Volumen aumentado a 0.1 para que se escuche claro
+        gain.gain.setValueAtTime(0.1, now); 
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15); 
         osc.stop(now + 0.15);
-      }, 150); // 150ms por nota (ritmo)
+      }, 150); 
     }
 
     function stopMusic() {
@@ -260,7 +267,6 @@
         musicInterval = null;
       }
     }
-
 
     // --- CONFIGURACIÓN DEL CANVAS ---
     const canvas = document.getElementById("gameCanvas");
@@ -284,8 +290,16 @@
     let baseSpeed = 2.8;       
     let gameSpeed = baseSpeed; 
     let distanceTraveled = 0;  
+    let bgOffset = 0; // Para montañas
     let distanceSinceLastPipe = 220; 
     
+    // Nubes
+    let clouds = [
+      {x: 100, y: 80, speed: 0.3, size: 25},
+      {x: 250, y: 140, speed: 0.5, size: 20},
+      {x: 400, y: 60, speed: 0.2, size: 30}
+    ];
+
     // SISTEMA DE PODERES
     let activePowerUp = 'NONE'; 
     let powerUpTimer = 0;
@@ -360,17 +374,18 @@
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
+        // LÁSER CON RANGO (150 Píxeles de largo)
         if (activePowerUp === 'LASER') {
           ctx.beginPath();
           ctx.moveTo(5, -5);
-          ctx.lineTo(canvas.width, -5); 
+          ctx.lineTo(150, -5); 
           ctx.lineWidth = 4 * (this.radius / this.originalRadius);
           ctx.strokeStyle = "red";
           ctx.stroke();
           
           ctx.beginPath();
           ctx.moveTo(5, -5);
-          ctx.lineTo(canvas.width, -5);
+          ctx.lineTo(150, -5);
           ctx.lineWidth = 1 * (this.radius / this.originalRadius);
           ctx.strokeStyle = "white";
           ctx.stroke();
@@ -562,7 +577,9 @@
           let bottomY = p.topHeight + this.gap;
           
           if (!p.destroyed) {
-            if (activePowerUp === 'LASER' && p.x > bird.x) {
+            
+            // LA TUBERÍA SE DESTRUYE AL ENTRAR AL RANGO DEL LÁSER (150px frente a Paul)
+            if (activePowerUp === 'LASER' && p.x < bird.x + 150 && p.x + this.width > bird.x) {
               p.destroyed = true;
             } 
             else if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
@@ -617,7 +634,7 @@
 
       if (newPower === 'SHIELD') {
         hasBubbleShield = true;
-        powerUpTimer = 120; // 2 Segundos solo para el texto
+        powerUpTimer = 120; 
         msgText.innerText = "¡ESCUDO BURBUJA!";
         msgText.style.color = "#6ee7b7";
       } 
@@ -625,7 +642,6 @@
         activePowerUp = newPower;
         shieldTimer = 0; 
         
-        // TODOS LOS PODERES DURAN 5 SEGUNDOS (300 frames a 60fps)
         powerUpTimer = 300; 
         
         if (activePowerUp === 'SPEED') {
@@ -666,8 +682,7 @@
     }
 
     function updatePowerUp() {
-      // Ocultar texto flotante después de 1 segundo (quedan 4s de poder)
-      if (powerUpTimer === 240 || (activePowerUp === 'NONE' && powerUpTimer === 60)) {
+      if (powerUpTimer === 180 || (activePowerUp === 'NONE' && powerUpTimer === 60)) {
         document.getElementById('powerup-text').classList.remove('show');
       }
 
@@ -697,7 +712,41 @@
       if (shieldTimer > 0) shieldTimer--;
     }
 
-    // --- FUNCIONES DE SUELO ---
+    // --- FUNCIONES DE PAISAJE Y SUELO ---
+    function drawBackground() {
+      // 1. Cielo (Ya está por CSS, pero aquí agregamos elementos móviles)
+      
+      // 2. Nubes (Más lentas que el suelo)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      clouds.forEach(c => {
+        // Se aceleran o ralentizan según el juego
+        c.x -= c.speed * (gameSpeed / baseSpeed);
+        if (c.x < -100) {
+          c.x = canvas.width + 50;
+          c.y = Math.random() * 150 + 20; // Nueva altura aleatoria
+        }
+        
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size*0.6, c.y - c.size*0.4, c.size*0.7, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size*1.2, c.y, c.size*0.8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 3. Montañas (Efecto Parallax)
+      bgOffset += gameSpeed * 0.3; // Mucho más lento que el primer plano
+      ctx.fillStyle = "#4ca37d"; 
+      
+      // Dibujamos las montañas asegurando que cubran la pantalla
+      for(let i = -1; i < Math.ceil(canvas.width / 200) + 1; i++) {
+        let xPos = (i * 200) - (bgOffset % 200);
+        ctx.beginPath();
+        // Base de la montaña en el suelo
+        ctx.arc(xPos + 100, canvas.height - 40, 120, Math.PI, 0); 
+        ctx.fill();
+      }
+    }
+
     function drawGround() {
       distanceTraveled += gameSpeed;
 
@@ -738,6 +787,8 @@
         obstacles.update();
       }
 
+      // ORDEN DE DIBUJO (Fondo atrás, UI adelante)
+      drawBackground();
       obstacles.draw();
       drawGround();
       bird.draw();
@@ -750,15 +801,16 @@
 
     // --- CONTROL DE ESTADOS ---
     function startGame() {
+      initAudio();
       document.getElementById('start-screen').classList.add('hidden');
       currentState = 'PLAYING';
-      playMusic(); // <-- Iniciar la música aquí
+      playMusic(); 
       bird.jump(); 
       loop();
     }
 
     function showGameOver() {
-      stopMusic(); // <-- Detener la música
+      stopMusic(); 
       document.getElementById('game-over-screen').classList.remove('hidden');
       document.getElementById('powerup-text').classList.remove('show');
       
@@ -772,6 +824,7 @@
     }
 
     function resetGame() {
+      initAudio();
       document.getElementById('game-over-screen').classList.add('hidden');
       
       bird.y = 150;
@@ -796,15 +849,15 @@
       document.getElementById('score-display').classList.remove('powerup');
       
       currentState = 'PLAYING';
-      playMusic(); // <-- Iniciar la música otra vez
+      playMusic(); 
       bird.jump();
       loop();
     }
 
     // --- CONTROLES ---
     function handleInput(e) {
-      // Ignorar clics en botones de la interfaz
       if (e.target.tagName === 'BUTTON') return;
+      initAudio(); // Desbloquear audio en el primer toque
       
       if(e.type === 'touchstart') e.preventDefault(); 
       if (currentState === 'PLAYING') bird.jump();
@@ -815,6 +868,7 @@
     
     document.addEventListener("keydown", function(e) {
       if (e.code === "Space") {
+        initAudio();
         if (currentState === 'START') startGame();
         else if (currentState === 'PLAYING') bird.jump();
         else if (currentState === 'GAMEOVER') resetGame();
@@ -826,6 +880,7 @@
       return style.getPropertyValue(name).trim() || fallback;
     }
 
+    drawBackground();
     drawGround();
     bird.draw();
 
