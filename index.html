@@ -24,6 +24,7 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
+      height: 100dvh; /* dVH es perfecto para iPhone, ignora la barra de navegación */
       overflow: hidden;
       touch-action: none; 
     }
@@ -31,11 +32,11 @@
     #game-container {
       position: relative;
       width: 100%;
-      max-width: 400px; 
-      height: 100%;
-      max-height: 600px;
+      max-width: 450px; /* Un poco más ancho en PC */
+      height: 100%;     /* Ahora ocupa el 100% real de altura */
       background-color: var(--bg-color);
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+      overflow: hidden;
     }
 
     canvas {
@@ -71,6 +72,7 @@
       transform: scale(1.2);
     }
 
+    /* TEXTO DEL SUPER PODER FLOTANTE */
     #powerup-text {
       position: absolute;
       top: 35%;
@@ -129,6 +131,8 @@
       gap: 15px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       border: 2px solid #333;
+      width: 85%;
+      max-width: 320px;
     }
 
     .hidden { display: none !important; }
@@ -176,6 +180,7 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
+      <!-- Botón de silenciar -->
       <button id="mute-btn" onclick="toggleMute()">🔊</button>
 
       <div id="score-display">0</div>
@@ -184,6 +189,7 @@
       <div id="start-screen">
         <h2>Flappy Paul</h2>
         <p>Atrapa las 🌟 para Súper Poderes</p>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top: -5px;">Asegúrate de quitar el modo silencio en tu iPhone</p>
         <button class="action-btn" onclick="startGame()">JUGAR</button>
       </div>
 
@@ -199,63 +205,69 @@
   </div>
 
   <script>
-    // --- SINTETIZADOR DE MÚSICA 8-BITS ---
+    // --- MOTOR DE AUDIO AVANZADO PARA IOS ---
     let audioCtx = null;
     let musicInterval = null;
     let noteIndex = 0;
     let isMuted = false;
+    let audioUnlocked = false;
 
-    // Melodía tipo Arcade
     const notes = [
       330, 330, 0, 330, 0, 261, 330, 0, 392, 0, 0, 0, 196, 0, 0, 0,
       261, 0, 0, 196, 0, 0, 164, 0, 0, 220, 0, 246, 0, 233, 220, 0
     ];
 
-    function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
+    // Función vital para iPhones: Fuerza el desbloqueo del hardware de audio en el primer toque
+    function unlockAudio() {
+      if (audioUnlocked) return;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      // Reproducir sonido invisible para liberar los permisos de Safari
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      gain.gain.value = 0;
+      osc.start(0);
+      osc.stop(0.001);
+      
+      audioUnlocked = true;
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('click', unlockAudio);
     }
+
+    document.addEventListener('touchstart', unlockAudio, {once: true});
+    document.addEventListener('click', unlockAudio, {once: true});
 
     function toggleMute() {
       isMuted = !isMuted;
       document.getElementById('mute-btn').innerText = isMuted ? "🔇" : "🔊";
-      
-      if (isMuted) {
-        stopMusic();
-      } else {
-        if (currentState === 'PLAYING') playMusic();
-      }
+      if (isMuted) stopMusic();
+      else if (currentState === 'PLAYING') playMusic();
     }
 
     function playMusic() {
       if (isMuted) return;
+      unlockAudio(); // Asegurar que está desbloqueado
       
-      initAudio();
       if (musicInterval) clearInterval(musicInterval);
       
       musicInterval = setInterval(() => {
         let freq = notes[noteIndex % notes.length];
         noteIndex++;
-        
         if (freq === 0) return; 
         
         let osc = audioCtx.createOscillator();
         let gain = audioCtx.createGain();
-        
         osc.type = 'square'; 
         osc.frequency.value = freq;
-        
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         
         let now = audioCtx.currentTime;
         osc.start(now);
-        // Volumen aumentado a 0.1 para que se escuche claro
-        gain.gain.setValueAtTime(0.1, now); 
+        gain.gain.setValueAtTime(0.15, now); // Volumen un poco más alto
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15); 
         osc.stop(now + 0.15);
       }, 150); 
@@ -290,10 +302,9 @@
     let baseSpeed = 2.8;       
     let gameSpeed = baseSpeed; 
     let distanceTraveled = 0;  
-    let bgOffset = 0; // Para montañas
+    let bgOffset = 0; 
     let distanceSinceLastPipe = 220; 
     
-    // Nubes
     let clouds = [
       {x: 100, y: 80, speed: 0.3, size: 25},
       {x: 250, y: 140, speed: 0.5, size: 20},
@@ -332,9 +343,7 @@
       
       draw: function() {
         ctx.save(); 
-        
         if (shieldTimer > 0) ctx.globalAlpha = (frames % 10 < 5) ? 0.4 : 1; 
-
         ctx.translate(this.x, this.y); 
         
         if (activePowerUp === 'SPEED' || activePowerUp === 'SCORE') {
@@ -374,7 +383,6 @@
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
-        // LÁSER CON RANGO (150 Píxeles de largo)
         if (activePowerUp === 'LASER') {
           ctx.beginPath();
           ctx.moveTo(5, -5);
@@ -577,8 +585,6 @@
           let bottomY = p.topHeight + this.gap;
           
           if (!p.destroyed) {
-            
-            // LA TUBERÍA SE DESTRUYE AL ENTRAR AL RANGO DEL LÁSER (150px frente a Paul)
             if (activePowerUp === 'LASER' && p.x < bird.x + 150 && p.x + this.width > bird.x) {
               p.destroyed = true;
             } 
@@ -641,7 +647,6 @@
       else {
         activePowerUp = newPower;
         shieldTimer = 0; 
-        
         powerUpTimer = 300; 
         
         if (activePowerUp === 'SPEED') {
@@ -714,18 +719,13 @@
 
     // --- FUNCIONES DE PAISAJE Y SUELO ---
     function drawBackground() {
-      // 1. Cielo (Ya está por CSS, pero aquí agregamos elementos móviles)
-      
-      // 2. Nubes (Más lentas que el suelo)
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
       clouds.forEach(c => {
-        // Se aceleran o ralentizan según el juego
         c.x -= c.speed * (gameSpeed / baseSpeed);
         if (c.x < -100) {
           c.x = canvas.width + 50;
-          c.y = Math.random() * 150 + 20; // Nueva altura aleatoria
+          c.y = Math.random() * 150 + 20; 
         }
-        
         ctx.beginPath();
         ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
         ctx.arc(c.x + c.size*0.6, c.y - c.size*0.4, c.size*0.7, 0, Math.PI * 2);
@@ -733,15 +733,12 @@
         ctx.fill();
       });
 
-      // 3. Montañas (Efecto Parallax)
-      bgOffset += gameSpeed * 0.3; // Mucho más lento que el primer plano
+      bgOffset += gameSpeed * 0.3; 
       ctx.fillStyle = "#4ca37d"; 
       
-      // Dibujamos las montañas asegurando que cubran la pantalla
       for(let i = -1; i < Math.ceil(canvas.width / 200) + 1; i++) {
         let xPos = (i * 200) - (bgOffset % 200);
         ctx.beginPath();
-        // Base de la montaña en el suelo
         ctx.arc(xPos + 100, canvas.height - 40, 120, Math.PI, 0); 
         ctx.fill();
       }
@@ -787,7 +784,6 @@
         obstacles.update();
       }
 
-      // ORDEN DE DIBUJO (Fondo atrás, UI adelante)
       drawBackground();
       obstacles.draw();
       drawGround();
@@ -801,7 +797,7 @@
 
     // --- CONTROL DE ESTADOS ---
     function startGame() {
-      initAudio();
+      unlockAudio(); 
       document.getElementById('start-screen').classList.add('hidden');
       currentState = 'PLAYING';
       playMusic(); 
@@ -824,7 +820,7 @@
     }
 
     function resetGame() {
-      initAudio();
+      unlockAudio();
       document.getElementById('game-over-screen').classList.add('hidden');
       
       bird.y = 150;
@@ -857,7 +853,7 @@
     // --- CONTROLES ---
     function handleInput(e) {
       if (e.target.tagName === 'BUTTON') return;
-      initAudio(); // Desbloquear audio en el primer toque
+      unlockAudio(); 
       
       if(e.type === 'touchstart') e.preventDefault(); 
       if (currentState === 'PLAYING') bird.jump();
@@ -868,7 +864,7 @@
     
     document.addEventListener("keydown", function(e) {
       if (e.code === "Space") {
-        initAudio();
+        unlockAudio();
         if (currentState === 'START') startGame();
         else if (currentState === 'PLAYING') bird.jump();
         else if (currentState === 'GAMEOVER') resetGame();
