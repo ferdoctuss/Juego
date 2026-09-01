@@ -1,263 +1,381 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solitario Web</title>
-    <style>
-        body {
-            background-color: #0b5e20; /* Verde tapete */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: white;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            user-select: none;
-        }
-        #top-bar { margin-bottom: 20px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background: #fff; color: #333; font-weight: bold; }
-        .board { display: flex; flex-direction: column; gap: 30px; width: 100%; max-width: 800px; }
-        .row { display: flex; gap: 15px; justify-content: space-between; height: 140px; }
-        .pile { 
-            width: 80px; height: 112px; border: 2px dashed rgba(255,255,255,0.3); border-radius: 8px; position: relative;
-        }
-        .card {
-            width: 80px; height: 112px; background-color: white; border-radius: 8px; position: absolute;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 5px; box-sizing: border-box; font-size: 20px; font-weight: bold;
-            transition: transform 0.1s;
-        }
-        .card:hover { transform: translateY(-2px); }
-        .card.red { color: #d92525; }
-        .card.black { color: #222; }
-        .card.hidden { background-color: #1a4971; border: 2px solid white; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px); cursor: default; }
-        .card.hidden .content { display: none; }
-        .card.selected { box-shadow: 0 0 15px 5px #ffd700; border: 2px solid #ffd700; transform: translateY(-5px); }
-        
-        /* Disposición de áreas */
-        #top-left { display: flex; gap: 15px; width: 250px; }
-        #foundations { display: flex; gap: 15px; flex-grow: 1; justify-content: flex-end; }
-        #tableaus { display: flex; gap: 15px; justify-content: space-between; height: 400px; }
-        
-        /* Los textos de las esquinas de la carta */
-        .card-top { align-self: flex-start; }
-        .card-center { align-self: center; font-size: 32px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Flappy Bird Clon</title>
+  <style>
+    :root {
+      --bg-color: #70c5ce; /* Color del cielo del juego original */
+      --ground-color: #ded895;
+      --text-color: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #121212; /* Fondo oscuro fuera del juego */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      touch-action: none; /* Bloquea cualquier gesto del navegador (scroll, zoom) */
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px; /* Ancho máximo para que se vea bien en PC */
+      height: 100%;
+      max-height: 600px;
+      background-color: var(--bg-color);
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Interfaz de usuario superpuesta */
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none; /* Para que los toques pasen al canvas */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #score-display {
+      font-size: 3rem;
+      font-weight: bold;
+      color: var(--text-color);
+      margin-top: 15%;
+      text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+      z-index: 10;
+    }
+
+    #start-screen, #game-over-screen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px 30px;
+      border-radius: 12px;
+      text-align: center;
+      color: white;
+      pointer-events: auto; /* Permite hacer clic en el botón */
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    button {
+      background-color: #f43f5e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #be123c;
+      transition: transform 0.1s;
+    }
+
+    button:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #be123c;
+    }
+
+    h2 { font-size: 1.8rem; }
+    p { font-size: 1rem; color: #cbd5e1; }
+  </style>
 </head>
 <body>
 
-    <div id="top-bar">
-        <button onclick="iniciarJuego()">Nuevo Juego</button>
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+      <div id="score-display">0</div>
+      
+      <div id="start-screen">
+        <h2>Flappy Clon</h2>
+        <p>Toca la pantalla o usa la barra espaciadora para saltar.</p>
+        <button onclick="startGame()">JUGAR</button>
+      </div>
+
+      <div id="game-over-screen" class="hidden">
+        <h2>¡Game Over!</h2>
+        <p>Puntuación final: <span id="final-score">0</span></p>
+        <button onclick="resetGame()">REINTENTAR</button>
+      </div>
     </div>
+  </div>
 
-    <div class="board">
-        <div class="row">
-            <div id="top-left">
-                <div class="pile" id="stock" onclick="clickStock()"></div>
-                <div class="pile" id="waste" onclick="clickPile('waste', 0)"></div>
-            </div>
-            <div id="foundations">
-                <div class="pile" id="f0" onclick="clickPile('foundation', 0)"></div>
-                <div class="pile" id="f1" onclick="clickPile('foundation', 1)"></div>
-                <div class="pile" id="f2" onclick="clickPile('foundation', 2)"></div>
-                <div class="pile" id="f3" onclick="clickPile('foundation', 3)"></div>
-            </div>
-        </div>
-        
-        <div id="tableaus">
-            <div class="pile" id="t0" onclick="clickPile('tableau', 0)"></div>
-            <div class="pile" id="t1" onclick="clickPile('tableau', 1)"></div>
-            <div class="pile" id="t2" onclick="clickPile('tableau', 2)"></div>
-            <div class="pile" id="t3" onclick="clickPile('tableau', 3)"></div>
-            <div class="pile" id="t4" onclick="clickPile('tableau', 4)"></div>
-            <div class="pile" id="t5" onclick="clickPile('tableau', 5)"></div>
-            <div class="pile" id="t6" onclick="clickPile('tableau', 6)"></div>
-        </div>
-    </div>
+  <script>
+    // --- CONFIGURACIÓN DEL CANVAS ---
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-    <script>
-        const palos = [
-            { nombre: 'corazones', simbolo: '♥', color: 'red' },
-            { nombre: 'diamantes', simbolo: '♦', color: 'red' },
-            { nombre: 'treboles', simbolo: '♣', color: 'black' },
-            { nombre: 'picas', simbolo: '♠', color: 'black' }
-        ];
-        const valores = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-        
-        let mazo = [], stock = [], waste = [], fundaciones = [[],[],[],[]], tableaus = [[],[],[],[],[],[],[]];
-        let seleccion = null; // { area, index, cardIndex }
+    // Ajustar el tamaño del canvas a su contenedor
+    function resizeCanvas() {
+      const container = document.getElementById("game-container");
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-        function iniciarJuego() {
-            // 1. Crear baraja
-            mazo = [];
-            for (let palo of palos) {
-                for (let i = 0; i < valores.length; i++) {
-                    mazo.push({ palo: palo, valorStr: valores[i], valorNum: i + 1, bocaArriba: false });
-                }
-            }
-            // 2. Barajar aleatoriamente
-            mazo.sort(() => Math.random() - 0.5);
+    // --- VARIABLES DEL JUEGO ---
+    let frames = 0;
+    let score = 0;
+    let currentState = 'START'; // START, PLAYING, GAMEOVER
+    let animationId;
 
-            // 3. Limpiar estado
-            stock = []; waste = [];
-            fundaciones = [[],[],[],[]];
-            tableaus = [[],[],[],[],[],[],[]];
-            seleccion = null;
+    // --- OBJETOS DEL JUEGO ---
+    const bird = {
+      x: 50,
+      y: 150,
+      radius: 12,
+      velocity: 0,
+      gravity: 0.25,
+      jumpForce: -5.5,
+      draw: function() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#fbbf24"; // Color amarillo (pájaro)
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
 
-            // 4. Repartir cartas en los 7 tableaus
-            for (let i = 0; i < 7; i++) {
-                for (let j = 0; j <= i; j++) {
-                    let carta = mazo.pop();
-                    if (j === i) carta.bocaArriba = true; // La última carta de la pila va descubierta
-                    tableaus[i].push(carta);
-                }
-            }
-            stock = mazo;
-            render();
+        // Pequeño "ojo" para darle dirección
+        ctx.beginPath();
+        ctx.arc(this.x + 4, this.y - 4, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#000";
+        ctx.fill();
+        ctx.closePath();
+      },
+      update: function() {
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+
+        // Choque con el suelo
+        if (this.y + this.radius >= canvas.height - 40) {
+          this.y = canvas.height - 40 - this.radius;
+          currentState = 'GAMEOVER';
+          showGameOver();
+        }
+        // Choque con el techo
+        if (this.y - this.radius <= 0) {
+          this.y = this.radius;
+          this.velocity = 0;
+        }
+      },
+      jump: function() {
+        this.velocity = this.jumpForce;
+      }
+    };
+
+    const pipes = {
+      items: [],
+      width: 50,
+      gap: 130, // Espacio entre tubo superior e inferior
+      dx: 2.5,  // Velocidad a la que se mueven
+      
+      draw: function() {
+        for (let i = 0; i < this.items.length; i++) {
+          let p = this.items[i];
+          
+          ctx.fillStyle = "#4ade80"; // Verde (tubos)
+          ctx.strokeStyle = "#166534"; // Borde verde oscuro
+          ctx.lineWidth = 2;
+
+          // Tubo Superior
+          ctx.fillRect(p.x, 0, this.width, p.topHeight);
+          ctx.strokeRect(p.x, 0, this.width, p.topHeight);
+
+          // Tubo Inferior
+          let bottomY = p.topHeight + this.gap;
+          let bottomHeight = canvas.height - bottomY - 40; // 40 es la altura del suelo
+          ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
+          ctx.strokeRect(p.x, bottomY, this.width, bottomHeight);
+        }
+      },
+      
+      update: function() {
+        // Generar un tubo nuevo cada 90 frames
+        if (frames % 90 === 0) {
+          // Altura aleatoria para el tubo superior
+          let minHeight = 50;
+          let maxHeight = canvas.height - this.gap - 40 - 50;
+          let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+          
+          this.items.push({
+            x: canvas.width,
+            topHeight: topHeight,
+            passed: false // Para saber si ya nos dio punto
+          });
         }
 
-        function render() {
-            // Renderizar Stock
-            dibujarPila('stock', stock.length > 0 ? [{...stock[stock.length-1], bocaArriba: false}] : []);
-            
-            // Renderizar Waste
-            dibujarPila('waste', waste.length > 0 ? [waste[waste.length-1]] : []);
+        for (let i = 0; i < this.items.length; i++) {
+          let p = this.items[i];
+          p.x -= this.dx;
 
-            // Renderizar Fundaciones
-            for (let i = 0; i < 4; i++) {
-                dibujarPila('f' + i, fundaciones[i].length > 0 ? [fundaciones[i][fundaciones[i].length-1]] : [], 'foundation', i);
+          // Detección de colisiones
+          let bottomY = p.topHeight + this.gap;
+          
+          // Verificar si el pájaro está dentro del área X del tubo
+          if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
+            // Verificar si golpea el tubo de arriba o el de abajo
+            if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
+              currentState = 'GAMEOVER';
+              showGameOver();
             }
+          }
 
-            // Renderizar Tableaus
-            for (let i = 0; i < 7; i++) {
-                dibujarPila('t' + i, tableaus[i], 'tableau', i, 25); // 25px de separación vertical
-            }
+          // Aumentar puntuación cuando pasamos el tubo
+          if (p.x + this.width < bird.x && !p.passed) {
+            score++;
+            p.passed = true;
+            document.getElementById('score-display').innerText = score;
+          }
+
+          // Eliminar tubos que salen de la pantalla por la izquierda para ahorrar memoria
+          if (p.x + this.width < 0) {
+            this.items.shift();
+            i--; // Ajustar el índice tras eliminar
+          }
         }
+      },
+      reset: function() {
+        this.items = [];
+      }
+    };
 
-        function dibujarPila(elementId, cartas, area, areaIndex, offset = 0) {
-            const el = document.getElementById(elementId);
-            el.innerHTML = '';
-            cartas.forEach((carta, i) => {
-                const div = document.createElement('div');
-                div.className = `card ${carta.bocaArriba ? carta.palo.color : 'hidden'}`;
-                
-                // Resaltar si está seleccionada
-                if (seleccion && seleccion.area === area && seleccion.index === areaIndex && i >= seleccion.cardIndex) {
-                    div.classList.add('selected');
-                }
+    // --- FUNCIONES DE DIBUJO ---
+    function drawGround() {
+      ctx.fillStyle = varColor('--ground-color', '#ded895');
+      ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+      
+      // Raya decorativa del suelo
+      ctx.fillStyle = "#84cc3a";
+      ctx.fillRect(0, canvas.height - 40, canvas.width, 10);
+      ctx.strokeStyle = "#538d1e";
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - 40);
+      ctx.lineTo(canvas.width, canvas.height - 40);
+      ctx.stroke();
+    }
 
-                div.style.top = `${i * offset}px`;
-                
-                if (carta.bocaArriba) {
-                    div.innerHTML = `
-                        <div class="content card-top">${carta.valorStr} ${carta.palo.simbolo}</div>
-                        <div class="content card-center">${carta.palo.simbolo}</div>
-                    `;
-                }
+    // --- BUCLE PRINCIPAL ---
+    function loop() {
+      // Limpiar lienzo
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Evitar propagación para manejar clics precisos en cartas individuales del tableau
-                div.onclick = (e) => {
-                    e.stopPropagation();
-                    if (area === 'tableau' && !carta.bocaArriba) return; // No interactuar con ocultas
-                    clickPile(area, areaIndex, i);
-                };
-                el.appendChild(div);
-            });
-        }
+      if (currentState === 'PLAYING') {
+        bird.update();
+        pipes.update();
+      }
 
-        function clickStock() {
-            seleccion = null; // Limpiar selección
-            if (stock.length > 0) {
-                let carta = stock.pop();
-                carta.bocaArriba = true;
-                waste.push(carta);
-            } else {
-                // Reiniciar stock desde el waste
-                while (waste.length > 0) {
-                    let carta = waste.pop();
-                    carta.bocaArriba = false;
-                    stock.push(carta);
-                }
-            }
-            render();
-        }
+      pipes.draw();
+      drawGround();
+      bird.draw();
 
-        function clickPile(area, index, cardIndex = null) {
-            let objetivo = obtenerPila(area, index);
-            
-            // Si no hay nada seleccionado, intentar seleccionar
-            if (!seleccion) {
-                if (objetivo.length === 0) return; // Pila vacía
-                if (area === 'waste') cardIndex = waste.length - 1;
-                if (area === 'foundation') cardIndex = fundaciones[index].length - 1;
-                
-                seleccion = { area, index, cardIndex };
-            } 
-            // Si ya hay algo seleccionado, intentar mover
-            else {
-                // Cancelar si hacemos clic en la misma carta
-                if (seleccion.area === area && seleccion.index === index && seleccion.cardIndex === cardIndex) {
-                    seleccion = null;
-                } else {
-                    intentarMovimiento(area, index);
-                }
-            }
-            render();
-        }
+      if (currentState === 'PLAYING') {
+        frames++;
+        animationId = requestAnimationFrame(loop);
+      }
+    }
 
-        function obtenerPila(area, index) {
-            if (area === 'waste') return waste;
-            if (area === 'foundation') return fundaciones[index];
-            if (area === 'tableau') return tableaus[index];
-        }
+    // --- CONTROL DE ESTADOS ---
+    function startGame() {
+      document.getElementById('start-screen').classList.add('hidden');
+      currentState = 'PLAYING';
+      bird.jump(); // Pequeño salto inicial
+      loop();
+    }
 
-        function intentarMovimiento(areaDestino, indexDestino) {
-            let pilaOrigen = obtenerPila(seleccion.area, seleccion.index);
-            let cartasAMover = pilaOrigen.slice(seleccion.cardIndex);
-            let cartaBaseMoviendo = cartasAMover[0];
-            let pilaDestino = obtenerPila(areaDestino, indexDestino);
-            let cartaTopDestino = pilaDestino.length > 0 ? pilaDestino[pilaDestino.length - 1] : null;
+    function showGameOver() {
+      document.getElementById('game-over-screen').classList.remove('hidden');
+      document.getElementById('final-score').innerText = score;
+    }
 
-            let movimientoValido = false;
+    function resetGame() {
+      document.getElementById('game-over-screen').classList.add('hidden');
+      
+      // Reiniciar variables
+      bird.y = 150;
+      bird.velocity = 0;
+      pipes.reset();
+      score = 0;
+      frames = 0;
+      document.getElementById('score-display').innerText = score;
+      
+      currentState = 'PLAYING';
+      bird.jump();
+      loop();
+    }
 
-            // Regla 1: Hacia Fundación (Solo se puede mover 1 carta a la vez)
-            if (areaDestino === 'foundation' && cartasAMover.length === 1) {
-                if (!cartaTopDestino) {
-                    movimientoValido = cartaBaseMoviendo.valorNum === 1; // Solo Ases en fundaciones vacías
-                } else {
-                    movimientoValido = (cartaTopDestino.palo.nombre === cartaBaseMoviendo.palo.nombre) && 
-                                       (cartaBaseMoviendo.valorNum === cartaTopDestino.valorNum + 1);
-                }
-            }
-            // Regla 2: Hacia Tableau
-            else if (areaDestino === 'tableau') {
-                if (!cartaTopDestino) {
-                    movimientoValido = cartaBaseMoviendo.valorNum === 13; // Solo Reyes (K) en espacios vacíos
-                } else {
-                    movimientoValido = (cartaTopDestino.palo.color !== cartaBaseMoviendo.palo.color) && 
-                                       (cartaBaseMoviendo.valorNum === cartaTopDestino.valorNum - 1);
-                }
-            }
+    // --- CONTROLES (Toque, Clic y Teclado) ---
+    function handleInput(e) {
+      // Evitamos el comportamiento por defecto (como hacer scroll) si tocamos el canvas
+      if(e.type === 'touchstart') e.preventDefault(); 
+      
+      if (currentState === 'PLAYING') {
+        bird.jump();
+      } else if (currentState === 'GAMEOVER') {
+        // Prevenir que el juego se reinicie accidentalmente en el mismo toque que mueres
+      }
+    }
 
-            if (movimientoValido) {
-                // Ejecutar movimiento
-                pilaDestino.push(...cartasAMover);
-                pilaOrigen.splice(seleccion.cardIndex, cartasAMover.length);
-                
-                // Voltear la carta que quedó arriba en el origen si es necesario
-                if (pilaOrigen.length > 0 && !pilaOrigen[pilaOrigen.length - 1].bocaArriba) {
-                    pilaOrigen[pilaOrigen.length - 1].bocaArriba = true;
-                }
-            }
-            
-            // Limpiar selección sin importar si fue válido o no
-            seleccion = null;
-        }
+    // Eventos
+    canvas.addEventListener("touchstart", handleInput, {passive: false});
+    canvas.addEventListener("mousedown", handleInput);
+    
+    document.addEventListener("keydown", function(e) {
+      if (e.code === "Space") {
+        if (currentState === 'START') startGame();
+        else if (currentState === 'PLAYING') bird.jump();
+        else if (currentState === 'GAMEOVER') resetGame();
+      }
+    });
 
-        // Iniciar al cargar
-        iniciarJuego();
-    </script>
+    // Helper para leer colores CSS
+    function varColor(name, fallback) {
+      const style = getComputedStyle(document.body);
+      return style.getPropertyValue(name).trim() || fallback;
+    }
+
+    // Dibujar el estado inicial (antes de dar a jugar)
+    drawGround();
+    bird.draw();
+
+    // --- BLOQUEO DE ZOOM TÁCTIL ESTRICTO PARA IOS/ANDROID ---
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    document.addEventListener('touchmove', function(event) {
+      if (event.scale && event.scale !== 1) { event.preventDefault(); }
+    }, { passive: false });
+
+  </script>
 </body>
 </html>
