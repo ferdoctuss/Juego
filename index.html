@@ -6,7 +6,7 @@
   <title>Flappy Bird Clon</title>
   <style>
     :root {
-      --bg-color: #70c5ce; /* Color del cielo del juego original */
+      --bg-color: #70c5ce; 
       --ground-color: #ded895;
       --text-color: #ffffff;
     }
@@ -19,19 +19,19 @@
     }
 
     body {
-      background-color: #121212; /* Fondo oscuro fuera del juego */
+      background-color: #121212; 
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
       overflow: hidden;
-      touch-action: none; /* Bloquea cualquier gesto del navegador (scroll, zoom) */
+      touch-action: none; 
     }
 
     #game-container {
       position: relative;
       width: 100%;
-      max-width: 400px; /* Ancho máximo para que se vea bien en PC */
+      max-width: 400px; 
       height: 100%;
       max-height: 600px;
       background-color: var(--bg-color);
@@ -51,18 +51,18 @@
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none; /* Para que los toques pasen al canvas */
+      pointer-events: none; 
       display: flex;
       flex-direction: column;
       align-items: center;
     }
 
     #score-display {
-      font-size: 3rem;
+      font-size: 4rem;
       font-weight: bold;
       color: var(--text-color);
       margin-top: 15%;
-      text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+      text-shadow: 3px 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
       z-index: 10;
     }
 
@@ -71,20 +71,20 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.7);
-      padding: 20px 30px;
-      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 24px 32px;
+      border-radius: 16px;
       text-align: center;
       color: white;
-      pointer-events: auto; /* Permite hacer clic en el botón */
+      pointer-events: auto; 
       display: flex;
       flex-direction: column;
       gap: 15px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 2px solid #333;
     }
 
-    .hidden {
-      display: none !important;
-    }
+    .hidden { display: none !important; }
 
     button {
       background-color: #f43f5e;
@@ -97,6 +97,7 @@
       cursor: pointer;
       box-shadow: 0 4px 0 #be123c;
       transition: transform 0.1s;
+      margin-top: 10px;
     }
 
     button:active {
@@ -104,8 +105,23 @@
       box-shadow: 0 0 0 #be123c;
     }
 
-    h2 { font-size: 1.8rem; }
-    p { font-size: 1rem; color: #cbd5e1; }
+    h2 { font-size: 2rem; color: #facc15; text-shadow: 1px 1px 0 #000; margin-bottom: 5px;}
+    p { font-size: 1.1rem; color: #cbd5e1; }
+    
+    .score-board {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .score-board p {
+      margin: 5px 0;
+      font-size: 1.2rem;
+      color: white;
+      font-weight: bold;
+    }
+    .score-number { color: #facc15; font-size: 1.4rem;}
+
   </style>
 </head>
 <body>
@@ -118,13 +134,18 @@
       
       <div id="start-screen">
         <h2>Flappy Clon</h2>
-        <p>Toca la pantalla o usa la barra espaciadora para saltar.</p>
+        <p>Toca para volar.</p>
         <button onclick="startGame()">JUGAR</button>
       </div>
 
       <div id="game-over-screen" class="hidden">
         <h2>¡Game Over!</h2>
-        <p>Puntuación final: <span id="final-score">0</span></p>
+        
+        <div class="score-board">
+          <p>Puntuación: <span class="score-number" id="final-score">0</span></p>
+          <p>Récord Máximo: <span class="score-number" id="best-score">0</span></p>
+        </div>
+
         <button onclick="resetGame()">REINTENTAR</button>
       </div>
     </div>
@@ -135,7 +156,6 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Ajustar el tamaño del canvas a su contenedor
     function resizeCanvas() {
       const container = document.getElementById("game-container");
       canvas.width = container.clientWidth;
@@ -147,33 +167,72 @@
     // --- VARIABLES DEL JUEGO ---
     let frames = 0;
     let score = 0;
-    let currentState = 'START'; // START, PLAYING, GAMEOVER
+    // Cargar récord guardado en el navegador (si existe, si no, es 0)
+    let highScore = localStorage.getItem('flappy_high_score') || 0; 
+    let currentState = 'START'; 
     let animationId;
 
     // --- OBJETOS DEL JUEGO ---
     const bird = {
-      x: 50,
+      x: 60,
       y: 150,
-      radius: 12,
+      radius: 12, // Usado para calcular colisiones
       velocity: 0,
       gravity: 0.25,
       jumpForce: -5.5,
+      
       draw: function() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#fbbf24"; // Color amarillo (pájaro)
-        ctx.fill();
-        ctx.strokeStyle = "#000";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.closePath();
+        ctx.save(); // Guarda el estado del canvas
+        ctx.translate(this.x, this.y); // Mueve el punto de origen al pájaro
+        
+        // Inclinación dinámica basada en la velocidad (cae = apunta abajo, salta = apunta arriba)
+        let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
+        ctx.rotate(rotation);
 
-        // Pequeño "ojo" para darle dirección
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#000";
+
+        // 1. Cuerpo (Círculo Amarillo)
         ctx.beginPath();
-        ctx.arc(this.x + 4, this.y - 4, 2, 0, Math.PI * 2);
-        ctx.fillStyle = "#000";
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#fbbf24"; 
         ctx.fill();
-        ctx.closePath();
+        ctx.stroke();
+
+        // 2. Ojo (Blanco y negro)
+        ctx.beginPath();
+        ctx.arc(5, -5, 4, 0, Math.PI * 2); // Parte blanca
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(6, -5, 1.5, 0, Math.PI * 2); // Pupila
+        ctx.fillStyle = "black";
+        ctx.fill();
+
+        // 3. Pico (Naranja)
+        ctx.beginPath();
+        ctx.moveTo(10, -1);
+        ctx.lineTo(18, 2);
+        ctx.lineTo(10, 5);
+        ctx.lineTo(8, 2);
+        ctx.fillStyle = "#f97316";
+        ctx.fill();
+        ctx.stroke();
+
+        // 4. Ala animada
+        // El ala sube y baja dependiendo de los frames del juego
+        let flapOffset = (frames % 20 < 10) ? -2 : 2; 
+        if (currentState !== 'PLAYING') flapOffset = 0;
+
+        ctx.beginPath();
+        ctx.ellipse(-4, 2 + flapOffset, 7, 4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "#fef08a"; // Amarillo claro
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore(); // Restaura el canvas para no rotar el resto del mundo
       },
       update: function() {
         this.velocity += this.gravity;
@@ -198,42 +257,59 @@
 
     const pipes = {
       items: [],
-      width: 50,
-      gap: 130, // Espacio entre tubo superior e inferior
-      dx: 2.5,  // Velocidad a la que se mueven
+      width: 55,
+      gap: 130, // Hueco entre tubos
+      dx: 2.5,  // Velocidad de movimiento
       
       draw: function() {
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           
-          ctx.fillStyle = "#4ade80"; // Verde (tubos)
-          ctx.strokeStyle = "#166534"; // Borde verde oscuro
+          // Crear un gradiente para dar efecto cilíndrico (3D)
+          let pipeGradient = ctx.createLinearGradient(p.x, 0, p.x + this.width, 0);
+          pipeGradient.addColorStop(0, "#53a828");
+          pipeGradient.addColorStop(0.2, "#74c627"); // Brillo
+          pipeGradient.addColorStop(0.8, "#53a828");
+          pipeGradient.addColorStop(1, "#326114"); // Sombra oscura
+
+          ctx.fillStyle = pipeGradient;
+          ctx.strokeStyle = "#166534";
           ctx.lineWidth = 2;
 
-          // Tubo Superior
+          let capHeight = 20; // Altura de la "tapa" de la tubería
+          let capExtra = 6;   // Cuánto sobresale la tapa a los lados
+
+          // --- TUBO SUPERIOR ---
+          // Cuerpo
           ctx.fillRect(p.x, 0, this.width, p.topHeight);
           ctx.strokeRect(p.x, 0, this.width, p.topHeight);
+          // Tapa inferior del tubo superior
+          ctx.fillRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
+          ctx.strokeRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
 
-          // Tubo Inferior
+          // --- TUBO INFERIOR ---
           let bottomY = p.topHeight + this.gap;
-          let bottomHeight = canvas.height - bottomY - 40; // 40 es la altura del suelo
+          let bottomHeight = canvas.height - bottomY - 40;
+          
+          // Cuerpo
           ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
           ctx.strokeRect(p.x, bottomY, this.width, bottomHeight);
+          // Tapa superior del tubo inferior
+          ctx.fillRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
+          ctx.strokeRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
         }
       },
       
       update: function() {
-        // Generar un tubo nuevo cada 90 frames
         if (frames % 90 === 0) {
-          // Altura aleatoria para el tubo superior
-          let minHeight = 50;
-          let maxHeight = canvas.height - this.gap - 40 - 50;
+          let minHeight = 60;
+          let maxHeight = canvas.height - this.gap - 40 - 60;
           let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
           
           this.items.push({
             x: canvas.width,
             topHeight: topHeight,
-            passed: false // Para saber si ya nos dio punto
+            passed: false 
           });
         }
 
@@ -241,29 +317,27 @@
           let p = this.items[i];
           p.x -= this.dx;
 
-          // Detección de colisiones
           let bottomY = p.topHeight + this.gap;
           
-          // Verificar si el pájaro está dentro del área X del tubo
+          // Detección de colisión adaptada (caja simple alrededor del pájaro)
           if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
-            // Verificar si golpea el tubo de arriba o el de abajo
             if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
               currentState = 'GAMEOVER';
               showGameOver();
             }
           }
 
-          // Aumentar puntuación cuando pasamos el tubo
+          // Aumentar puntuación
           if (p.x + this.width < bird.x && !p.passed) {
             score++;
             p.passed = true;
             document.getElementById('score-display').innerText = score;
           }
 
-          // Eliminar tubos que salen de la pantalla por la izquierda para ahorrar memoria
-          if (p.x + this.width < 0) {
+          // Eliminar tubos fuera de pantalla
+          if (p.x + this.width < -10) {
             this.items.shift();
-            i--; // Ajustar el índice tras eliminar
+            i--; 
           }
         }
       },
@@ -277,19 +351,29 @@
       ctx.fillStyle = varColor('--ground-color', '#ded895');
       ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
       
-      // Raya decorativa del suelo
+      // Franja de pasto
       ctx.fillStyle = "#84cc3a";
-      ctx.fillRect(0, canvas.height - 40, canvas.width, 10);
+      ctx.fillRect(0, canvas.height - 40, canvas.width, 12);
       ctx.strokeStyle = "#538d1e";
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, canvas.height - 40);
       ctx.lineTo(canvas.width, canvas.height - 40);
+      ctx.stroke();
+
+      // Efecto de movimiento en el suelo
+      let moveOffset = (frames * pipes.dx) % 20;
+      ctx.beginPath();
+      for(let i = 0; i < canvas.width; i+= 20) {
+        ctx.moveTo(i - moveOffset, canvas.height - 40);
+        ctx.lineTo(i - moveOffset - 10, canvas.height - 28);
+      }
+      ctx.strokeStyle = "rgba(0,0,0,0.1)";
       ctx.stroke();
     }
 
     // --- BUCLE PRINCIPAL ---
     function loop() {
-      // Limpiar lienzo
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (currentState === 'PLAYING') {
@@ -311,19 +395,26 @@
     function startGame() {
       document.getElementById('start-screen').classList.add('hidden');
       currentState = 'PLAYING';
-      bird.jump(); // Pequeño salto inicial
+      bird.jump(); 
       loop();
     }
 
     function showGameOver() {
       document.getElementById('game-over-screen').classList.remove('hidden');
+      
+      // Lógica de Puntuación Máxima (Récord)
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('flappy_high_score', highScore);
+      }
+
       document.getElementById('final-score').innerText = score;
+      document.getElementById('best-score').innerText = highScore;
     }
 
     function resetGame() {
       document.getElementById('game-over-screen').classList.add('hidden');
       
-      // Reiniciar variables
       bird.y = 150;
       bird.velocity = 0;
       pipes.reset();
@@ -338,17 +429,10 @@
 
     // --- CONTROLES (Toque, Clic y Teclado) ---
     function handleInput(e) {
-      // Evitamos el comportamiento por defecto (como hacer scroll) si tocamos el canvas
       if(e.type === 'touchstart') e.preventDefault(); 
-      
-      if (currentState === 'PLAYING') {
-        bird.jump();
-      } else if (currentState === 'GAMEOVER') {
-        // Prevenir que el juego se reinicie accidentalmente en el mismo toque que mueres
-      }
+      if (currentState === 'PLAYING') bird.jump();
     }
 
-    // Eventos
     canvas.addEventListener("touchstart", handleInput, {passive: false});
     canvas.addEventListener("mousedown", handleInput);
     
@@ -360,17 +444,16 @@
       }
     });
 
-    // Helper para leer colores CSS
     function varColor(name, fallback) {
       const style = getComputedStyle(document.body);
       return style.getPropertyValue(name).trim() || fallback;
     }
 
-    // Dibujar el estado inicial (antes de dar a jugar)
+    // Dibujar el estado inicial antes de jugar
     drawGround();
     bird.draw();
 
-    // --- BLOQUEO DE ZOOM TÁCTIL ESTRICTO PARA IOS/ANDROID ---
+    // Bloqueo de Zoom iOS
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
     document.addEventListener('touchmove', function(event) {
       if (event.scale && event.scale !== 1) { event.preventDefault(); }
