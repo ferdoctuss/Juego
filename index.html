@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Flappy Bird Clon</title>
+  <title>Flappy Bird Clon - Edición Poderes</title>
   <style>
     :root {
       --bg-color: #70c5ce; 
@@ -64,6 +64,13 @@
       margin-top: 15%;
       text-shadow: 3px 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
       z-index: 10;
+      transition: color 0.2s, transform 0.2s;
+    }
+
+    /* Efecto cuando estamos en modo super velocidad */
+    #score-display.powerup {
+      color: #38bdf8;
+      transform: scale(1.2);
     }
 
     #start-screen, #game-over-screen {
@@ -121,7 +128,6 @@
       font-weight: bold;
     }
     .score-number { color: #facc15; font-size: 1.4rem;}
-
   </style>
 </head>
 <body>
@@ -134,18 +140,16 @@
       
       <div id="start-screen">
         <h2>Flappy Clon</h2>
-        <p>Toca para volar.</p>
+        <p>Atrapa las 🌟 para Súper Velocidad</p>
         <button onclick="startGame()">JUGAR</button>
       </div>
 
       <div id="game-over-screen" class="hidden">
         <h2>¡Game Over!</h2>
-        
         <div class="score-board">
           <p>Puntuación: <span class="score-number" id="final-score">0</span></p>
-          <p>Récord Máximo: <span class="score-number" id="best-score">0</span></p>
+          <p>Récord: <span class="score-number" id="best-score">0</span></p>
         </div>
-
         <button onclick="resetGame()">REINTENTAR</button>
       </div>
     </div>
@@ -164,54 +168,70 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // --- VARIABLES DEL JUEGO ---
+    // --- VARIABLES GLOBALES DEL JUEGO ---
     let frames = 0;
     let score = 0;
-    // Cargar récord guardado en el navegador (si existe, si no, es 0)
     let highScore = localStorage.getItem('flappy_high_score') || 0; 
     let currentState = 'START'; 
     let animationId;
+    
+    // Control de Velocidad y Distancia
+    let baseSpeed = 2.8;       // Velocidad normal de los obstáculos
+    let gameSpeed = baseSpeed; // Velocidad actual (cambia con el poder)
+    let distanceTraveled = 0;  // Para el efecto de suelo en movimiento
+    let distanceSinceLastPipe = 220; // Contador para saber cuándo crear otro tubo
+    
+    // Control del Power-Up (Moneda)
+    let powerUpTimer = 0;
+    let coinsList = [];
 
     // --- OBJETOS DEL JUEGO ---
     const bird = {
       x: 60,
       y: 150,
-      radius: 12, // Usado para calcular colisiones
+      radius: 12,
       velocity: 0,
       gravity: 0.25,
       jumpForce: -5.5,
       
       draw: function() {
-        ctx.save(); // Guarda el estado del canvas
-        ctx.translate(this.x, this.y); // Mueve el punto de origen al pájaro
+        ctx.save(); 
+        ctx.translate(this.x, this.y); 
         
-        // Inclinación dinámica basada en la velocidad (cae = apunta abajo, salta = apunta arriba)
+        // Aura invencible si el poder está activo
+        if (powerUpTimer > 0) {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(56, 189, 248, 0.5)"; // Aura Celeste brillante
+          ctx.fill();
+        }
+
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#000";
 
-        // 1. Cuerpo (Círculo Amarillo)
+        // Cuerpo 
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#fbbf24"; 
+        ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; // Más brillante si tiene poder
         ctx.fill();
         ctx.stroke();
 
-        // 2. Ojo (Blanco y negro)
+        // Ojo 
         ctx.beginPath();
-        ctx.arc(5, -5, 4, 0, Math.PI * 2); // Parte blanca
+        ctx.arc(5, -5, 4, 0, Math.PI * 2); 
         ctx.fillStyle = "white";
         ctx.fill();
         ctx.stroke();
         
         ctx.beginPath();
-        ctx.arc(6, -5, 1.5, 0, Math.PI * 2); // Pupila
+        ctx.arc(6, -5, 1.5, 0, Math.PI * 2); 
         ctx.fillStyle = "black";
         ctx.fill();
 
-        // 3. Pico (Naranja)
+        // Pico 
         ctx.beginPath();
         ctx.moveTo(10, -1);
         ctx.lineTo(18, 2);
@@ -221,33 +241,46 @@
         ctx.fill();
         ctx.stroke();
 
-        // 4. Ala animada
-        // El ala sube y baja dependiendo de los frames del juego
+        // Ala animada
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
+        if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; // Aleteo más rápido con poder
         if (currentState !== 'PLAYING') flapOffset = 0;
 
         ctx.beginPath();
         ctx.ellipse(-4, 2 + flapOffset, 7, 4, 0, 0, Math.PI * 2);
-        ctx.fillStyle = "#fef08a"; // Amarillo claro
+        ctx.fillStyle = "#fef08a"; 
         ctx.fill();
         ctx.stroke();
 
-        ctx.restore(); // Restaura el canvas para no rotar el resto del mundo
+        ctx.restore(); 
       },
+      
       update: function() {
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Choque con el suelo
-        if (this.y + this.radius >= canvas.height - 40) {
-          this.y = canvas.height - 40 - this.radius;
-          currentState = 'GAMEOVER';
-          showGameOver();
-        }
-        // Choque con el techo
-        if (this.y - this.radius <= 0) {
-          this.y = this.radius;
-          this.velocity = 0;
+        // Si tenemos el super poder activado, REBOTAMOS en los bordes en lugar de morir
+        if (powerUpTimer > 0) {
+          if (this.y + this.radius >= canvas.height - 40) {
+            this.y = canvas.height - 40 - this.radius;
+            this.velocity = -7; // Super rebote en el suelo
+          }
+          if (this.y - this.radius <= 0) {
+            this.y = this.radius;
+            this.velocity = 3; // Rebote en el techo
+          }
+        } 
+        // Lógica de muerte normal si no tenemos poder
+        else {
+          if (this.y + this.radius >= canvas.height - 40) {
+            this.y = canvas.height - 40 - this.radius;
+            currentState = 'GAMEOVER';
+            showGameOver();
+          }
+          if (this.y - this.radius <= 0) {
+            this.y = this.radius;
+            this.velocity = 0;
+          }
         }
       },
       jump: function() {
@@ -255,53 +288,73 @@
       }
     };
 
-    const pipes = {
+    const obstacles = {
       items: [],
       width: 55,
-      gap: 130, // Hueco entre tubos
-      dx: 2.5,  // Velocidad de movimiento
+      gap: 135,
+      pipeSpawnDist: 220, // Distancia entre tubo y tubo
       
       draw: function() {
+        // DIBUJAR TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           
-          // Crear un gradiente para dar efecto cilíndrico (3D)
           let pipeGradient = ctx.createLinearGradient(p.x, 0, p.x + this.width, 0);
           pipeGradient.addColorStop(0, "#53a828");
-          pipeGradient.addColorStop(0.2, "#74c627"); // Brillo
+          pipeGradient.addColorStop(0.2, "#74c627"); 
           pipeGradient.addColorStop(0.8, "#53a828");
-          pipeGradient.addColorStop(1, "#326114"); // Sombra oscura
+          pipeGradient.addColorStop(1, "#326114"); 
 
           ctx.fillStyle = pipeGradient;
           ctx.strokeStyle = "#166534";
           ctx.lineWidth = 2;
 
-          let capHeight = 20; // Altura de la "tapa" de la tubería
-          let capExtra = 6;   // Cuánto sobresale la tapa a los lados
+          let capHeight = 20; 
+          let capExtra = 6;   
 
-          // --- TUBO SUPERIOR ---
-          // Cuerpo
+          // Tubo Superior
           ctx.fillRect(p.x, 0, this.width, p.topHeight);
           ctx.strokeRect(p.x, 0, this.width, p.topHeight);
-          // Tapa inferior del tubo superior
           ctx.fillRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
           ctx.strokeRect(p.x - capExtra/2, p.topHeight - capHeight, this.width + capExtra, capHeight);
 
-          // --- TUBO INFERIOR ---
+          // Tubo Inferior
           let bottomY = p.topHeight + this.gap;
           let bottomHeight = canvas.height - bottomY - 40;
           
-          // Cuerpo
           ctx.fillRect(p.x, bottomY, this.width, bottomHeight);
           ctx.strokeRect(p.x, bottomY, this.width, bottomHeight);
-          // Tapa superior del tubo inferior
           ctx.fillRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
           ctx.strokeRect(p.x - capExtra/2, bottomY, this.width + capExtra, capHeight);
+        }
+
+        // DIBUJAR MONEDAS
+        for (let i = 0; i < coinsList.length; i++) {
+          let c = coinsList[i];
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+          ctx.fillStyle = "#facc15"; // Dorado
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#b45309"; // Borde bronce
+          ctx.stroke();
+
+          // Estrella en la moneda
+          ctx.fillStyle = "#fff";
+          ctx.font = "14px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("★", c.x, c.y + 1);
         }
       },
       
       update: function() {
-        if (frames % 90 === 0) {
+        distanceSinceLastPipe += gameSpeed;
+
+        // Generar nuevos obstáculos basados en distancia (independiente de la velocidad)
+        if (distanceSinceLastPipe >= this.pipeSpawnDist) {
+          distanceSinceLastPipe = 0;
+
           let minHeight = 60;
           let maxHeight = canvas.height - this.gap - 40 - 60;
           let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
@@ -311,23 +364,60 @@
             topHeight: topHeight,
             passed: false 
           });
+
+          // 30% DE PROBABILIDAD DE CREAR UNA MONEDA EN EL CENTRO DEL HUECO
+          if (Math.random() < 0.30) {
+            coinsList.push({
+              x: canvas.width + this.width / 2,
+              y: topHeight + (this.gap / 2),
+              radius: 14
+            });
+          }
         }
 
+        // Actualizar y comprobar colisiones con MONEDAS
+        for (let i = 0; i < coinsList.length; i++) {
+          let c = coinsList[i];
+          c.x -= gameSpeed;
+
+          // Colisión Pájaro -> Moneda
+          let dx = bird.x - c.x;
+          let dy = bird.y - c.y;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < bird.radius + c.radius) {
+            // ¡ATRAPÓ LA MONEDA! Activar Super Poder
+            activatePowerUp();
+            coinsList.splice(i, 1);
+            i--;
+            continue;
+          }
+
+          // Eliminar si sale de pantalla
+          if (c.x < -30) {
+            coinsList.splice(i, 1);
+            i--;
+          }
+        }
+
+        // Actualizar y comprobar colisiones con TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
-          p.x -= this.dx;
+          p.x -= gameSpeed;
 
           let bottomY = p.topHeight + this.gap;
           
-          // Detección de colisión adaptada (caja simple alrededor del pájaro)
-          if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
-            if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
-              currentState = 'GAMEOVER';
-              showGameOver();
+          // ¡SOLO MUERE SI NO TIENE EL SUPER PODER ACTIVO!
+          if (powerUpTimer === 0) {
+            if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
+              if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
+                currentState = 'GAMEOVER';
+                showGameOver();
+              }
             }
           }
 
-          // Aumentar puntuación
+          // Aumentar puntuación (funciona sin importar a qué velocidad vayamos)
           if (p.x + this.width < bird.x && !p.passed) {
             score++;
             p.passed = true;
@@ -343,11 +433,33 @@
       },
       reset: function() {
         this.items = [];
+        coinsList = [];
+        distanceSinceLastPipe = this.pipeSpawnDist; // Para que spawnee uno de inmediato
       }
     };
 
+    // --- LÓGICA DE SUPER PODERES ---
+    function activatePowerUp() {
+      powerUpTimer = 180; // Dura aprox 3 segundos (a 60fps)
+      gameSpeed = 22; // Multiplicamos la velocidad x8 (Velocidad absurda pero controlable)
+      document.getElementById('score-display').classList.add('powerup');
+    }
+
+    function updatePowerUp() {
+      if (powerUpTimer > 0) {
+        powerUpTimer--;
+        if (powerUpTimer === 0) {
+          // Se acabó el poder, regresamos a la normalidad
+          gameSpeed = baseSpeed;
+          document.getElementById('score-display').classList.remove('powerup');
+        }
+      }
+    }
+
     // --- FUNCIONES DE DIBUJO ---
     function drawGround() {
+      distanceTraveled += gameSpeed;
+
       ctx.fillStyle = varColor('--ground-color', '#ded895');
       ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
       
@@ -361,10 +473,10 @@
       ctx.lineTo(canvas.width, canvas.height - 40);
       ctx.stroke();
 
-      // Efecto de movimiento en el suelo
-      let moveOffset = (frames * pipes.dx) % 20;
+      // Efecto de movimiento en el suelo sincronizado con la velocidad real
+      let moveOffset = distanceTraveled % 20;
       ctx.beginPath();
-      for(let i = 0; i < canvas.width; i+= 20) {
+      for(let i = 0; i < canvas.width + 20; i+= 20) {
         ctx.moveTo(i - moveOffset, canvas.height - 40);
         ctx.lineTo(i - moveOffset - 10, canvas.height - 28);
       }
@@ -377,11 +489,12 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (currentState === 'PLAYING') {
+        updatePowerUp();
         bird.update();
-        pipes.update();
+        obstacles.update();
       }
 
-      pipes.draw();
+      obstacles.draw();
       drawGround();
       bird.draw();
 
@@ -417,10 +530,15 @@
       
       bird.y = 150;
       bird.velocity = 0;
-      pipes.reset();
+      obstacles.reset();
       score = 0;
       frames = 0;
+      distanceTraveled = 0;
+      powerUpTimer = 0;
+      gameSpeed = baseSpeed;
+      
       document.getElementById('score-display').innerText = score;
+      document.getElementById('score-display').classList.remove('powerup');
       
       currentState = 'PLAYING';
       bird.jump();
