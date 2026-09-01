@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Flappy Paul - Edición Locura</title>
+  <title>Flappy Paul - Edición Locura Total</title>
   <style>
     :root {
       --bg-color: #70c5ce; 
@@ -71,6 +71,7 @@
       transform: scale(1.2);
     }
 
+    /* TEXTO DEL SUPER PODER FLOTANTE */
     #powerup-text {
       position: absolute;
       top: 35%;
@@ -198,21 +199,21 @@
     let distanceSinceLastPipe = 220; 
     
     // SISTEMA DE PODERES
-    let activePowerUp = 'NONE'; // NONE, SPEED, LASER, GIANT, SCORE
+    let activePowerUp = 'NONE'; 
     let powerUpTimer = 0;
     let shieldTimer = 0; 
     let pointsPerPipe = 1; 
+    let hasBubbleShield = false; // El Escudo Burbuja dura hasta que chocas
     
-    // Bolsa de Poderes (para que no se repitan hasta salir todos)
+    // Bolsa de Poderes (8 en total, sin repetir)
     let powerBag = [];
 
     function getNextPowerUp() {
       if (powerBag.length === 0) {
-        powerBag = ['SPEED', 'LASER', 'GIANT', 'SCORE'];
-        // Mezclamos la bolsa aleatoriamente
-        powerBag.sort(() => Math.random() - 0.5);
+        powerBag = ['SPEED', 'LASER', 'GIANT', 'SCORE', 'MINI', 'SLOWMO', 'SHIELD', 'MAGNET'];
+        powerBag.sort(() => Math.random() - 0.5); // Mezclamos
       }
-      return powerBag.pop(); // Saca el último poder de la bolsa mezclada
+      return powerBag.pop(); 
     }
 
     let coinsList = [];
@@ -237,6 +238,7 @@
 
         ctx.translate(this.x, this.y); 
         
+        // EFECTOS DE AURAS
         if (activePowerUp === 'SPEED' || activePowerUp === 'SCORE') {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
@@ -244,18 +246,40 @@
           ctx.fill();
         }
 
+        // BURBUJA DEL ESCUDO PERMANENTE
+        if (hasBubbleShield) {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.originalRadius * 1.8 + Math.random() * 2, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(167, 243, 208, 0.4)"; 
+          ctx.fill();
+          ctx.strokeStyle = "rgba(52, 211, 153, 0.8)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // IMÁN CÓSMICO (Ondas)
+        if (activePowerUp === 'MAGNET') {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 10 + (frames % 20), 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(236, 72, 153, ${1 - (frames % 20)/20})`; // Rosa desvaneciéndose
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // NOMBRE DE PAUL
         ctx.fillStyle = "white";
         ctx.font = "bold " + (12 * (this.radius / this.originalRadius)) + "px Arial";
         ctx.textAlign = "center";
         ctx.strokeStyle = "black";
         ctx.lineWidth = 3;
-        let nameY = -(this.radius + 10);
+        let nameY = -(this.radius + 12);
         ctx.strokeText("Paul", 0, nameY);
         ctx.fillText("Paul", 0, nameY);
 
         let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
         ctx.rotate(rotation);
 
+        // OJOS LÁSER
         if (activePowerUp === 'LASER') {
           ctx.beginPath();
           ctx.moveTo(5, -5);
@@ -278,12 +302,14 @@
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#000";
 
+        // Cuerpo 
         ctx.beginPath();
         ctx.arc(0, 0, this.originalRadius, 0, Math.PI * 2);
         ctx.fillStyle = (powerUpTimer > 0) ? "#facc15" : "#fbbf24"; 
         ctx.fill();
         ctx.stroke();
 
+        // Ojo 
         ctx.beginPath();
         ctx.arc(5, -5, 4, 0, Math.PI * 2); 
         ctx.fillStyle = activePowerUp === 'LASER' ? "red" : "white";
@@ -295,6 +321,7 @@
         ctx.fillStyle = activePowerUp === 'LASER' ? "yellow" : "black";
         ctx.fill();
 
+        // Pico 
         ctx.beginPath();
         ctx.moveTo(10, -1);
         ctx.lineTo(18, 2);
@@ -304,8 +331,10 @@
         ctx.fill();
         ctx.stroke();
 
+        // Ala
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
         if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; 
+        if (activePowerUp === 'SLOWMO') flapOffset = (frames % 40 < 20) ? -2 : 2; // Aleteo lento
         if (currentState !== 'PLAYING') flapOffset = 0;
 
         ctx.beginPath();
@@ -321,21 +350,20 @@
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Solo estos poderes y el escudo otorgan inmunidad de rebote en los bordes
-        let isImmuneToBorders = (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || shieldTimer > 0);
+        // Inmunidad a los bordes
+        let isImmuneToBorders = (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || shieldTimer > 0 || hasBubbleShield);
 
         if (isImmuneToBorders) {
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
-            this.velocity = -7; 
+            this.velocity = activePowerUp === 'SLOWMO' ? -4 : -7; 
           }
           if (this.y - this.radius <= 0) {
             this.y = this.radius;
-            this.velocity = 3; 
+            this.velocity = activePowerUp === 'SLOWMO' ? 1.5 : 3; 
           }
         } 
         else {
-          // Si no tiene esos poderes (ej: SCORE o LASER sin golpear), MUERE al tocar el suelo
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
             currentState = 'GAMEOVER';
@@ -421,6 +449,7 @@
           this.items.push({ x: canvas.width, topHeight: topHeight, passed: false, destroyed: false });
           pipesSpawnedCount++;
 
+          // CADA 7 TUBERÍAS SALE UNA MONEDA
           if (pipesSpawnedCount % 7 === 0) {
             let coinNearTop = Math.random() < 0.5;
             let coinYPosition = coinNearTop ? topHeight + 25 : topHeight + this.gap - 25;
@@ -428,9 +457,19 @@
           }
         }
 
+        // Colisiones con MONEDAS
         for (let i = 0; i < coinsList.length; i++) {
           let c = coinsList[i];
-          c.x -= gameSpeed;
+          
+          // Efecto Imán Cósmico
+          if (activePowerUp === 'MAGNET') {
+            let dx = bird.x - c.x;
+            let dy = bird.y - c.y;
+            c.x += dx * 0.08;
+            c.y += dy * 0.08;
+          } else {
+            c.x -= gameSpeed;
+          }
 
           let dx = bird.x - c.x;
           let dy = bird.y - c.y;
@@ -445,35 +484,42 @@
           if (c.x < -30) { coinsList.splice(i, 1); i--; }
         }
 
+        // Colisiones con TUBERÍAS
         for (let i = 0; i < this.items.length; i++) {
           let p = this.items[i];
           p.x -= gameSpeed;
           let bottomY = p.topHeight + this.gap;
           
           if (!p.destroyed) {
+            // Destrucción por Láser
             if (activePowerUp === 'LASER' && p.x > bird.x) {
               p.destroyed = true;
             } 
             else if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
               if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
                 
-                // --- LÓGICA DE COLISIÓN DE TUBERÍAS CORREGIDA ---
                 if (activePowerUp === 'GIANT') {
-                  p.destroyed = true; // Paul gigante rompe el tubo
+                  p.destroyed = true; 
                 } 
                 else if (activePowerUp === 'SPEED' || shieldTimer > 0) {
-                  // Pasa de largo sin morir
+                  // Inmune temporalmente
                 } 
+                else if (hasBubbleShield) {
+                  // ¡La burbuja nos salva! Se rompe la tubería y el escudo, y nos da 1 seg extra
+                  p.destroyed = true;
+                  hasBubbleShield = false;
+                  shieldTimer = 60; // Parpadeo de gracia
+                }
                 else {
-                  // Si tiene el poder SCORE, o LASER, o NADA, ¡Morirá aquí!
+                  // Muerte
                   currentState = 'GAMEOVER';
                   showGameOver();
                 }
-
               }
             }
           }
 
+          // Sumar puntos
           if (p.x + this.width < bird.x && !p.passed) {
             score += pointsPerPipe;
             p.passed = true;
@@ -493,58 +539,94 @@
 
     // --- LÓGICA DE SUPER PODERES ---
     function activateRandomPowerUp() {
-      // Obtenemos el poder de la bolsa en lugar de 100% al azar
-      activePowerUp = getNextPowerUp();
-      powerUpTimer = 180; 
-      shieldTimer = 0; 
-
+      let newPower = getNextPowerUp();
+      let msgText = document.getElementById('powerup-text');
+      
+      // Reset de estadísticas base por si teníamos otro poder
       gameSpeed = baseSpeed;
       bird.radius = bird.originalRadius;
       pointsPerPipe = 1;
-      
-      let msgText = document.getElementById('powerup-text');
+      bird.gravity = 0.25;
+      bird.jumpForce = -5.5;
 
-      if (activePowerUp === 'SPEED') {
-        gameSpeed = 22; 
-        msgText.innerText = "¡SÚPER VELOCIDAD!";
-        msgText.style.color = "#38bdf8";
-      } else if (activePowerUp === 'LASER') {
-        msgText.innerText = "¡OJOS LÁSER!";
-        msgText.style.color = "#ef4444";
-      } else if (activePowerUp === 'GIANT') {
-        bird.radius = bird.originalRadius * 4; 
-        if (bird.y + bird.radius > canvas.height - 40) bird.y = canvas.height - 40 - bird.radius;
-        msgText.innerText = "¡PAUL GIGANTE!";
-        msgText.style.color = "#4ade80";
-      } else if (activePowerUp === 'SCORE') {
-        pointsPerPipe = 10;
-        msgText.innerText = "¡PUNTAJE X10!";
-        msgText.style.color = "#facc15";
+      if (newPower === 'SHIELD') {
+        hasBubbleShield = true;
+        powerUpTimer = 120; // Solo para mostrar el texto 2 segs
+        msgText.innerText = "¡ESCUDO BURBUJA!";
+        msgText.style.color = "#6ee7b7";
+      } 
+      else {
+        activePowerUp = newPower;
+        shieldTimer = 0; 
+        
+        // TIEMPO BALA Y EL IMÁN DURAN 5 SEGUNDOS, LOS DEMÁS 3
+        powerUpTimer = (activePowerUp === 'SLOWMO' || activePowerUp === 'MAGNET') ? 300 : 180; 
+        
+        if (activePowerUp === 'SPEED') {
+          gameSpeed = 22; 
+          msgText.innerText = "¡SÚPER VELOCIDAD!";
+          msgText.style.color = "#38bdf8";
+        } else if (activePowerUp === 'LASER') {
+          msgText.innerText = "¡OJOS LÁSER!";
+          msgText.style.color = "#ef4444";
+        } else if (activePowerUp === 'GIANT') {
+          bird.radius = bird.originalRadius * 4; 
+          if (bird.y + bird.radius > canvas.height - 40) bird.y = canvas.height - 40 - bird.radius;
+          msgText.innerText = "¡PAUL GIGANTE!";
+          msgText.style.color = "#4ade80";
+        } else if (activePowerUp === 'SCORE') {
+          pointsPerPipe = 10;
+          msgText.innerText = "¡PUNTAJE X10!";
+          msgText.style.color = "#facc15";
+        } else if (activePowerUp === 'MINI') {
+          bird.radius = bird.originalRadius * 0.4;
+          msgText.innerText = "¡PAUL HORMIGA!";
+          msgText.style.color = "#a855f7";
+        } else if (activePowerUp === 'SLOWMO') {
+          gameSpeed = baseSpeed * 0.5;
+          bird.gravity = 0.125;
+          bird.jumpForce = -3.5;
+          bird.velocity *= 0.5;
+          msgText.innerText = "¡TIEMPO BALA!";
+          msgText.style.color = "#93c5fd";
+        } else if (activePowerUp === 'MAGNET') {
+          msgText.innerText = "¡IMÁN CÓSMICO!";
+          msgText.style.color = "#ec4899";
+        }
       }
 
       msgText.classList.add('show');
-      document.getElementById('score-display').classList.add('powerup');
+      if (activePowerUp !== 'NONE') document.getElementById('score-display').classList.add('powerup');
     }
 
     function updatePowerUp() {
-      if (powerUpTimer === 120) {
+      // Ocultar texto flotante
+      if (powerUpTimer === 120 || (activePowerUp === 'NONE' && powerUpTimer === 60)) {
         document.getElementById('powerup-text').classList.remove('show');
       }
 
       if (powerUpTimer > 0) {
         powerUpTimer--;
         
-        if (powerUpTimer === 0) {
+        if (powerUpTimer === 0 && activePowerUp !== 'NONE') {
+          // TERMINA EL PODER ACTIVO
+          if (activePowerUp === 'SLOWMO') bird.velocity *= 2; 
+
           gameSpeed = baseSpeed;
           bird.radius = bird.originalRadius;
           pointsPerPipe = 1;
-          activePowerUp = 'NONE';
+          bird.gravity = 0.25;
+          bird.jumpForce = -5.5;
 
+          // Solo limpiamos la pantalla si era un poder que alteraba mucho el movimiento
+          if (activePowerUp === 'SPEED' || activePowerUp === 'GIANT' || activePowerUp === 'SLOWMO') {
+            obstacles.items = []; 
+            distanceSinceLastPipe = 0; 
+            shieldTimer = 90; // Modo fantasma activado
+          }
+
+          activePowerUp = 'NONE';
           document.getElementById('score-display').classList.remove('powerup');
-          
-          obstacles.items = []; 
-          distanceSinceLastPipe = 0; 
-          shieldTimer = 90; 
         }
       }
       
@@ -580,6 +662,12 @@
     // --- BUCLE PRINCIPAL ---
     function loop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (activePowerUp === 'SLOWMO') {
+        // Tinte azulado para el efecto cinematográfico
+        ctx.fillStyle = "rgba(0, 0, 50, 0.2)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       if (currentState === 'PLAYING') {
         updatePowerUp();
@@ -624,6 +712,8 @@
       bird.y = 150;
       bird.velocity = 0;
       bird.radius = bird.originalRadius;
+      bird.gravity = 0.25;
+      bird.jumpForce = -5.5;
       obstacles.reset();
       
       score = 0;
@@ -635,6 +725,7 @@
       gameSpeed = baseSpeed;
       pointsPerPipe = 1;
       activePowerUp = 'NONE';
+      hasBubbleShield = false;
       
       document.getElementById('score-display').innerText = score;
       document.getElementById('score-display').classList.remove('powerup');
