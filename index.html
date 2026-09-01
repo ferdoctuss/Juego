@@ -179,10 +179,11 @@
     let distanceTraveled = 0;  
     let distanceSinceLastPipe = 220; 
     
-    // Control del Power-Up y Fase Segura
+    // Control del Power-Up, Zona Segura y Frecuencia de Monedas
     let powerUpTimer = 0;
-    let shieldTimer = 0; // Tiempo de gracia al perder el poder
+    let shieldTimer = 0; 
     let coinsList = [];
+    let pipesSpawnedCount = 0; // Contador de tuberías creadas
 
     // --- OBJETOS DEL JUEGO ---
     const bird = {
@@ -196,14 +197,12 @@
       draw: function() {
         ctx.save(); 
         
-        // EFECTO DE PARPADEO EN LA ZONA SEGURA (GHOST MODE)
         if (shieldTimer > 0) {
           ctx.globalAlpha = (frames % 10 < 5) ? 0.4 : 1; 
         }
 
         ctx.translate(this.x, this.y); 
         
-        // Aura invencible durante la super velocidad
         if (powerUpTimer > 0) {
           ctx.beginPath();
           ctx.arc(0, 0, this.radius + 8 + Math.random() * 4, 0, Math.PI * 2);
@@ -246,7 +245,7 @@
         ctx.fill();
         ctx.stroke();
 
-        // Ala animada
+        // Ala
         let flapOffset = (frames % 20 < 10) ? -2 : 2; 
         if (powerUpTimer > 0) flapOffset = (frames % 6 < 3) ? -3 : 3; 
         if (currentState !== 'PLAYING') flapOffset = 0;
@@ -264,18 +263,16 @@
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        // Si tenemos SUPER PODER o ESTAMOS EN LA ZONA SEGURA (Escudo temporal) -> Rebotamos
         if (powerUpTimer > 0 || shieldTimer > 0) {
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
-            this.velocity = -7; // Super rebote en el suelo
+            this.velocity = -7; 
           }
           if (this.y - this.radius <= 0) {
             this.y = this.radius;
-            this.velocity = 3; // Rebote en el techo
+            this.velocity = 3; 
           }
         } 
-        // Lógica de muerte normal (solo cuando no hay poderes ni escudos)
         else {
           if (this.y + this.radius >= canvas.height - 40) {
             this.y = canvas.height - 40 - this.radius;
@@ -354,17 +351,29 @@
 
         if (distanceSinceLastPipe >= this.pipeSpawnDist) {
           distanceSinceLastPipe = 0;
+          
           let minHeight = 60;
           let maxHeight = canvas.height - this.gap - 40 - 60;
           let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
           
           this.items.push({ x: canvas.width, topHeight: topHeight, passed: false });
+          pipesSpawnedCount++;
 
-          // 30% DE PROBABILIDAD DE CREAR MONEDA
-          if (Math.random() < 0.30) {
+          // GENERAR MONEDA EXACTAMENTE CADA 15 TUBERÍAS
+          if (pipesSpawnedCount % 15 === 0) {
+            
+            // Decidir si la moneda va arriba o abajo (50% de probabilidad)
+            let coinNearTop = Math.random() < 0.5;
+            
+            // 30 píxeles de separación desde el borde de la tubería. 
+            // Esto obliga al jugador a volar muy cerca del borde para tomarla.
+            let coinYPosition = coinNearTop 
+                ? topHeight + 30 
+                : topHeight + this.gap - 30;
+
             coinsList.push({
               x: canvas.width + this.width / 2,
-              y: topHeight + (this.gap / 2),
+              y: coinYPosition,
               radius: 14
             });
           }
@@ -395,7 +404,6 @@
 
           let bottomY = p.topHeight + this.gap;
           
-          // ¡SOLO MUERE SI NO TIENE EL SUPER PODER NI EL ESCUDO DE GRACIA!
           if (powerUpTimer === 0 && shieldTimer === 0) {
             if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.width) {
               if (bird.y - bird.radius < p.topHeight || bird.y + bird.radius > bottomY) {
@@ -417,6 +425,7 @@
       reset: function() {
         this.items = [];
         coinsList = [];
+        pipesSpawnedCount = 0; // Reiniciar conteo de tuberías
         distanceSinceLastPipe = this.pipeSpawnDist; 
       }
     };
@@ -425,7 +434,7 @@
     function activatePowerUp() {
       powerUpTimer = 180; 
       gameSpeed = 22; 
-      shieldTimer = 0; // Cancelamos el escudo si agarra otra moneda mientras parpadea
+      shieldTimer = 0; 
       document.getElementById('score-display').classList.add('powerup');
     }
 
@@ -433,23 +442,16 @@
       if (powerUpTimer > 0) {
         powerUpTimer--;
         
-        // ¡JUSTO CUANDO TERMINA EL PODER!
         if (powerUpTimer === 0) {
           gameSpeed = baseSpeed;
           document.getElementById('score-display').classList.remove('powerup');
           
-          // 1. Limpiamos la pantalla de obstáculos para crear la "Zona Segura"
-          obstacles.items = [];
-          
-          // 2. Reiniciamos el contador para que la siguiente tubería tarde en salir
+          obstacles.items = []; // Limpiar tuberías al salir del poder
           distanceSinceLastPipe = 0; 
-          
-          // 3. Activamos el Escudo Temporal (fantasma) durante 1.5 segundos (90 frames)
           shieldTimer = 90; 
         }
       }
       
-      // Descontar el tiempo del escudo temporal
       if (shieldTimer > 0) {
         shieldTimer--;
       }
@@ -531,7 +533,7 @@
       frames = 0;
       distanceTraveled = 0;
       powerUpTimer = 0;
-      shieldTimer = 0; // Reiniciar escudo
+      shieldTimer = 0; 
       gameSpeed = baseSpeed;
       
       document.getElementById('score-display').innerText = score;
